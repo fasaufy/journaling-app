@@ -3,9 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-
-type Mood = "Great" | "Good" | "Neutral" | "Low" | "Rough";
-type Entry = { id: string; date: string; mood: Mood; tags: string[]; preview: string; body: string[] };
+import { entryDateKey, initialEntries, type Entry, type Mood, readEntries, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = { Great: "/Great.svg", Good: "/Good.svg", Neutral: "/Neutral.svg", Low: "/Low.svg", Rough: "/Rough.svg" };
 const navItems = [
@@ -15,24 +13,12 @@ const navItems = [
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 const moodOptions: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
-const entries: Entry[] = [
-  { id: "sep-07", date: "Monday, September 7, 2026", mood: "Low", tags: ["work", "family"], preview: "Long day at work, but dinner with Sara helped", body: ["The day was full from the first meeting to the last message, but dinner with Sara made everything feel lighter.", "We talked about the little things and made plans for the weekend."] },
-  { id: "sep-06", date: "Sunday, September 6, 2026", mood: "Good", tags: ["travel", "lisbon"], preview: "Started the trip to Lisbon today", body: ["The first day of the trip felt quiet and unfamiliar in a good way. I spent the afternoon wandering without a plan.", "Tomorrow I want to find the market everyone keeps recommending."] },
-  { id: "sep-04", date: "Friday, September 4, 2026", mood: "Low", tags: ["work"], preview: "Feeling stuck on the project again", body: ["I kept circling the same problem today. It is frustrating to feel so close and still not see the way through.", "A walk after lunch helped me reset."] },
-  { id: "sep-02", date: "Wednesday, September 2, 2026", mood: "Neutral", tags: ["health"], preview: "A quiet day to reset and take things slowly", body: ["I woke up with a heavy feeling and gave myself permission to move slowly.", "Small rituals are becoming the best part of my week."] },
-];
-
 const formatNewEntryDate = () => new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date());
 const formatDateKey = (key: string | null) => {
   if (!key) return formatNewEntryDate();
   const [year, month, day] = key.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? formatNewEntryDate() : new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(date);
-};
-const entryDateKey = (date: string) => {
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
 };
 const countWords = (text: string) => {
   const trimmed = text.trim();
@@ -74,6 +60,7 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(entries[0].id);
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -84,6 +71,10 @@ function HomePageContent() {
   const [tagInput, setTagInput] = useState("");
   const [saveState, setSaveState] = useState("Saved");
   const [hasEdited, setHasEdited] = useState(false);
+
+  useEffect(() => {
+    setEntries(readEntries());
+  }, []);
 
   const routeMode = searchParams.get("new") === "1" ? "new" : searchParams.get("edit") ? "edit" : null;
   const selectedDate = searchParams.get("date");
@@ -128,6 +119,20 @@ function HomePageContent() {
   useEffect(() => {
     if (!routeMode || !hasEdited) return;
     const timer = window.setTimeout(() => {
+      const entryId = searchParams.get("edit") ?? `entry-${entryDateKey(draftDate)}`;
+      const nextEntry: Entry = {
+        id: entryId,
+        date: draftDate,
+        mood: draftMood ?? "Neutral",
+        tags: draftTags,
+        preview: draftBody.trim().split(/\s+/).slice(0, 10).join(" ") || "New journal entry",
+        body: draftBody.trim() ? draftBody.split(/\n\n+/).map((paragraph) => paragraph.trim()).filter(Boolean) : [""],
+      };
+      setEntries((current) => {
+        const next = current.some((entry) => entry.id === entryId) ? current.map((entry) => entry.id === entryId ? nextEntry : entry) : [nextEntry, ...current];
+        writeEntries(next);
+        return next;
+      });
       setSaveState("Saved");
     }, 700);
     setSaveState("saving…");

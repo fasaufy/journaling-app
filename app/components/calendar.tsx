@@ -1,9 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-type Mood = "Great" | "Good" | "Neutral" | "Low" | "Rough";
+import { useEffect, useState } from "react";
+import { dateKey, entryDateKey, initialEntries, readEntries, type Mood } from "../lib/entries";
 
 type CalendarEntry = {
   mood: Mood;
@@ -31,13 +30,6 @@ const moodIcons: Record<Mood, string> = {
   Rough: "/Rough.svg",
 };
 
-const entries: Record<string, CalendarEntry> = {
-  "2026-09-02": { mood: "Neutral", preview: "A quiet day to reset and take things slowly" },
-  "2026-09-04": { mood: "Low", preview: "Feeling stuck on the project again" },
-  "2026-09-06": { mood: "Good", preview: "Started the trip to Lisbon today" },
-  "2026-09-07": { mood: "Low", preview: "Long day at work, but dinner with Sara helped" },
-};
-
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
@@ -46,10 +38,6 @@ const navItems = [
 ];
 
 const mobileNavItems = [navItems[0], navItems[1], { label: "new entry", href: "/home?new=1", icon: "/add.svg", activeIcon: "/add.svg" }, navItems[2], navItems[3]];
-
-function dateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
 
 function getCalendarDays(month: Date): CalendarDay[] {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -107,7 +95,7 @@ function MonthHeader({ month, onChangeMonth, onToday }: { month: Date; onChangeM
   );
 }
 
-function CalendarGrid({ month, onSelectDay }: { month: Date; onSelectDay: (date: Date) => void }) {
+function CalendarGrid({ month, entries, onSelectDay }: { month: Date; entries: Record<string, CalendarEntry>; onSelectDay: (date: Date) => void }) {
   const days = getCalendarDays(month);
   const todayKey = dateKey(new Date());
   const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -155,6 +143,14 @@ export function CalendarPage() {
   const router = useRouter();
   const currentDate = new Date();
   const [month, setMonth] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+  const [entries, setEntries] = useState<Record<string, CalendarEntry>>(() => Object.fromEntries(initialEntries.map((entry) => [entryDateKey(entry.date), { mood: entry.mood, preview: entry.preview }])));
+
+  useEffect(() => {
+    const updateEntries = () => setEntries(Object.fromEntries(readEntries().map((entry) => [entryDateKey(entry.date), { mood: entry.mood, preview: entry.preview }])));
+    updateEntries();
+    window.addEventListener("storage", updateEntries);
+    return () => window.removeEventListener("storage", updateEntries);
+  }, []);
 
   function changeMonth(offset: number) {
     setMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
@@ -175,7 +171,7 @@ export function CalendarPage() {
       <section className="calendar-card">
         <div className="calendar-card-inner">
           <MonthHeader month={month} onChangeMonth={changeMonth} onToday={goToToday} />
-          <CalendarGrid month={month} onSelectDay={openDay} />
+          <CalendarGrid month={month} entries={entries} onSelectDay={openDay} />
           <CalendarFooter />
         </div>
         <div className="calendar-content-fade" aria-hidden="true" />
