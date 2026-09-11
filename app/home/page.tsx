@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { entryDateKey, initialEntries, type Entry, type Mood, readEntries, writeEntries } from "../lib/entries";
 
@@ -9,10 +9,10 @@ const moodIcons: Record<Mood, string> = { Great: "/Great.svg", Good: "/Good.svg"
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
-  { label: "search", href: "/search", icon: "/search-default.svg", activeIcon: "/search-active.svg" },
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 const moodOptions: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
+type HomeFilter = "all" | "thisMonth" | Mood;
 const formatNewEntryDate = () => new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date());
 const formatDateKey = (key: string | null) => {
   if (!key) return formatNewEntryDate();
@@ -28,15 +28,45 @@ const countWords = (text: string) => {
 
 function Sidebar() {
   const router = useRouter();
-  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new entry</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={item.label === "home" ? "active" : ""} href={item.href} key={item.label}><img src={item.label === "home" ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav><div className="calendar-streak">🔥 12 day streak</div></aside>;
+  const pathname = usePathname();
+  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new entry</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav><div className="calendar-streak">🔥 12 day streak</div></aside>;
 }
 
 function MobileNavigation() {
-  return <nav className="calendar-mobile-nav" aria-label="Mobile navigation">{[navItems[0], navItems[1], { label: "new entry", href: "/home?new=1", icon: "/add.svg", activeIcon: "/add.svg" }, navItems[2], navItems[3]].map((item) => <a className={item.label === "home" ? "active" : item.label === "new entry" ? "add" : ""} href={item.href} key={item.label}><img src={item.label === "home" ? item.activeIcon : item.icon} alt={item.label} /></a>)}</nav>;
+  const pathname = usePathname();
+  return (
+    <nav className="calendar-mobile-nav" aria-label="Mobile navigation">
+      <div className="calendar-mobile-segmented">
+        {navItems.map((item) => (
+          <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}>
+            <img src={pathname === item.href ? item.activeIcon : item.icon} alt={item.label} />
+          </a>
+        ))}
+      </div>
+      <a className="calendar-mobile-add" href="/home?new=1" aria-label="New entry">
+        <img src="/add.svg" alt="New entry" />
+      </a>
+    </nav>
+  );
 }
 
 function SearchField({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
   return <div className="home-search"><img src="/search-default.svg" alt="" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search entries" aria-label="Search entries" /></div>;
+}
+
+function FilterBar({ activeFilter, onChange }: { activeFilter: HomeFilter; onChange: (nextFilter: HomeFilter) => void }) {
+  return (
+    <div className="home-filter-row" role="toolbar" aria-label="Quick filters">
+      <button type="button" className={`home-filter-chip${activeFilter === "all" ? " active" : ""}`} onClick={() => onChange("all")} aria-pressed={activeFilter === "all"}>all entries</button>
+      <button type="button" className={`home-filter-chip${activeFilter === "thisMonth" ? " active" : ""}`} onClick={() => onChange("thisMonth")} aria-pressed={activeFilter === "thisMonth"}>this month</button>
+      {moodOptions.map((mood) => (
+        <button key={mood} type="button" className={`home-filter-chip home-filter-chip-mood${activeFilter === mood ? " active" : ""}`} onClick={() => onChange(mood)} aria-pressed={activeFilter === mood}>
+          <img src={moodIcons[mood]} alt="" />
+          <span>{mood}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function EntryCard({ entry, selected, onSelect }: { entry: Entry; selected: boolean; onSelect: () => void }) {
@@ -62,6 +92,7 @@ function HomePageContent() {
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<HomeFilter>("all");
   const [selectedId, setSelectedId] = useState(entries[0].id);
   const [mobileDetail, setMobileDetail] = useState(false);
   const [draftDate, setDraftDate] = useState(formatNewEntryDate());
@@ -82,7 +113,19 @@ function HomePageContent() {
   const isDirectEntry = Boolean(directEntry && !routeMode);
   const isEditorOpen = Boolean(routeMode);
   const selected = entries.find((entry) => entry.id === selectedId) ?? entries.find((entry) => entryDateKey(entry.date) === selectedDate) ?? entries[0];
-  const visibleEntries = useMemo(() => entries.filter((entry) => `${entry.date} ${entry.preview} ${entry.body.join(" ")} ${entry.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [entries, query]);
+  const visibleEntries = useMemo(() => {
+    const now = new Date();
+    return entries.filter((entry) => {
+      const matchesQuery = `${entry.date} ${entry.preview} ${entry.body.join(" ")} ${entry.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase());
+      if (!matchesQuery) return false;
+      if (activeFilter === "all") return true;
+      if (activeFilter === "thisMonth") {
+        const entryDate = new Date(entry.date);
+        return entryDate.getFullYear() === now.getFullYear() && entryDate.getMonth() === now.getMonth();
+      }
+      return entry.mood === activeFilter;
+    });
+  }, [activeFilter, entries, query]);
 
   useEffect(() => {
     if (routeMode === "new") {
@@ -202,6 +245,7 @@ function HomePageContent() {
       <section className={`home-list-panel${isDirectEntry ? " direct-entry-list" : ""}${isEditorOpen ? " editor-open-list" : ""}`}>
         <div className="home-list-inner">
           <SearchField query={query} setQuery={setQuery} />
+          <FilterBar activeFilter={activeFilter} onChange={setActiveFilter} />
           <div className="home-entry-list home-entry-list-desktop">{visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => setSelectedId(entry.id)} />)}</div>
           <div className="home-entry-list home-entry-list-mobile">{!mobileDetail && visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => { setSelectedId(entry.id); setMobileDetail(true); }} />)}</div>
         </div>

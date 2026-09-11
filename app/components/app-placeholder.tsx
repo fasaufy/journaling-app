@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
-  { label: "search", href: "/search", icon: "/search-default.svg", activeIcon: "/search-active.svg" },
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 
@@ -32,7 +31,10 @@ export function AppPlaceholder({ title, description }: { title: string; descript
         </div>
       </section>
       <nav className="calendar-mobile-nav" aria-label="Mobile navigation">
-        {[navItems[0], navItems[1], { label: "new entry", href: "/home?new=1", icon: "/add.svg", activeIcon: "/add.svg" }, navItems[2], navItems[3]].map((item) => <a className={item.label === activeLabel ? "active" : item.label === "new entry" ? "add" : ""} href={item.href} key={item.label}><img src={item.label === activeLabel ? item.activeIcon : item.icon} alt={item.label} /></a>)}
+        <div className="calendar-mobile-segmented">
+          {navItems.map((item) => <a className={item.label === activeLabel ? "active" : ""} href={item.href} key={item.label}><img src={item.label === activeLabel ? item.activeIcon : item.icon} alt={item.label} /></a>)}
+        </div>
+        <a className="calendar-mobile-add" href="/home?new=1" aria-label="New entry"><img src="/add.svg" alt="New entry" /></a>
       </nav>
     </main>
   );

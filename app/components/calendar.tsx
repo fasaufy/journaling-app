@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { dateKey, entryDateKey, initialEntries, readEntries, type Mood } from "../lib/entries";
 
@@ -33,11 +33,8 @@ const moodIcons: Record<Mood, string> = {
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
-  { label: "search", href: "/search", icon: "/search-default.svg", activeIcon: "/search-active.svg" },
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
-
-const mobileNavItems = [navItems[0], navItems[1], { label: "new entry", href: "/home?new=1", icon: "/add.svg", activeIcon: "/add.svg" }, navItems[2], navItems[3]];
 
 function getCalendarDays(month: Date): CalendarDay[] {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -60,6 +57,7 @@ function Logo() {
 }
 
 function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
+  const pathname = usePathname();
   return (
     <aside className="calendar-sidebar">
       <Logo />
@@ -69,8 +67,8 @@ function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
       </button>
       <nav className="calendar-sidebar-nav" aria-label="Main navigation">
         {navItems.map((item) => (
-          <a className={item.label === "calendar" ? "active" : ""} href={item.href} key={item.label}>
-            <img src={item.label === "calendar" ? item.activeIcon : item.icon} alt="" />
+          <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}>
+            <img src={pathname === item.href ? item.activeIcon : item.icon} alt="" />
             <span>{item.label}</span>
           </a>
         ))}
@@ -136,7 +134,21 @@ function CalendarFooter() {
 }
 
 function MobileNavigation() {
-  return <nav className="calendar-mobile-nav" aria-label="Mobile navigation">{mobileNavItems.map((item) => <a className={item.label === "calendar" ? "active" : item.label === "new entry" ? "add" : ""} href={item.href} key={item.label}><img src={item.label === "calendar" ? item.activeIcon : item.icon} alt={item.label} /></a>)}</nav>;
+  const pathname = usePathname();
+  return (
+    <nav className="calendar-mobile-nav" aria-label="Mobile navigation">
+      <div className="calendar-mobile-segmented">
+        {navItems.map((item) => (
+          <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}>
+            <img src={pathname === item.href ? item.activeIcon : item.icon} alt={item.label} />
+          </a>
+        ))}
+      </div>
+      <a className="calendar-mobile-add" href="/home?new=1" aria-label="New entry">
+        <img src="/add.svg" alt="New entry" />
+      </a>
+    </nav>
+  );
 }
 
 export function CalendarPage() {
@@ -158,7 +170,15 @@ export function CalendarPage() {
 
   function openDay(date: Date) {
     const key = dateKey(date);
-    router.push(entries[key] ? `/home?date=${key}` : `/home?new=1&date=${key}`);
+    const entry = Object.entries(entries).find(([entryKey]) => entryKey === key)?.[1];
+    if (entry) {
+      const existingEntry = readEntries().find((item) => entryDateKey(item.date) === key);
+      if (existingEntry) {
+        router.push(`/home?edit=${existingEntry.id}&date=${key}`);
+        return;
+      }
+    }
+    router.push(`/home?new=1&date=${key}`);
   }
 
   function goToToday() {
