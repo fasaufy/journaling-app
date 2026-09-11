@@ -82,7 +82,7 @@ function HomePageContent() {
   const isDirectEntry = Boolean(directEntry && !routeMode);
   const isEditorOpen = Boolean(routeMode);
   const selected = entries.find((entry) => entry.id === selectedId) ?? entries.find((entry) => entryDateKey(entry.date) === selectedDate) ?? entries[0];
-  const visibleEntries = useMemo(() => entries.filter((entry) => `${entry.date} ${entry.preview} ${entry.body.join(" ")} ${entry.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [query]);
+  const visibleEntries = useMemo(() => entries.filter((entry) => `${entry.date} ${entry.preview} ${entry.body.join(" ")} ${entry.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase())), [entries, query]);
 
   useEffect(() => {
     if (routeMode === "new") {
@@ -118,21 +118,21 @@ function HomePageContent() {
 
   useEffect(() => {
     if (!routeMode || !hasEdited) return;
+    const entryId = searchParams.get("edit") ?? `entry-${entryDateKey(draftDate)}`;
+    const nextEntry: Entry = {
+      id: entryId,
+      date: draftDate,
+      mood: draftMood ?? "Neutral",
+      tags: draftTags,
+      preview: draftBody.trim().split(/\s+/).slice(0, 10).join(" ") || "New journal entry",
+      body: draftBody.trim() ? draftBody.split(/\n\n+/).map((paragraph) => paragraph.trim()).filter(Boolean) : [""],
+    };
+    setEntries((current) => {
+      const next = current.some((entry) => entry.id === entryId) ? current.map((entry) => entry.id === entryId ? nextEntry : entry) : [nextEntry, ...current];
+      writeEntries(next);
+      return next;
+    });
     const timer = window.setTimeout(() => {
-      const entryId = searchParams.get("edit") ?? `entry-${entryDateKey(draftDate)}`;
-      const nextEntry: Entry = {
-        id: entryId,
-        date: draftDate,
-        mood: draftMood ?? "Neutral",
-        tags: draftTags,
-        preview: draftBody.trim().split(/\s+/).slice(0, 10).join(" ") || "New journal entry",
-        body: draftBody.trim() ? draftBody.split(/\n\n+/).map((paragraph) => paragraph.trim()).filter(Boolean) : [""],
-      };
-      setEntries((current) => {
-        const next = current.some((entry) => entry.id === entryId) ? current.map((entry) => entry.id === entryId ? nextEntry : entry) : [nextEntry, ...current];
-        writeEntries(next);
-        return next;
-      });
       setSaveState("Saved");
     }, 700);
     setSaveState("saving…");
@@ -205,7 +205,6 @@ function HomePageContent() {
           <div className="home-entry-list home-entry-list-desktop">{visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => setSelectedId(entry.id)} />)}</div>
           <div className="home-entry-list home-entry-list-mobile">{!mobileDetail && visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => { setSelectedId(entry.id); setMobileDetail(true); }} />)}</div>
         </div>
-        <div className="scroll-bottom-fade" aria-hidden="true" />
       </section>
 
       <section className={`home-desktop-detail${isDirectEntry ? " direct-entry-detail" : ""}`}>

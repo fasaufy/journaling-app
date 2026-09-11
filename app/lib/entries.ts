@@ -24,7 +24,11 @@ export function readEntries() {
   if (!stored) return initialEntries;
   try {
     const parsed = JSON.parse(stored) as Entry[];
-    return Array.isArray(parsed) ? parsed : initialEntries;
+    if (!Array.isArray(parsed)) return initialEntries;
+    const storedById = new Map(parsed.map((entry) => [entry.id, entry]));
+    const mergedInitial = initialEntries.map((entry) => storedById.get(entry.id) ?? entry);
+    const initialIds = new Set(initialEntries.map((entry) => entry.id));
+    return [...parsed.filter((entry) => !initialIds.has(entry.id)), ...mergedInitial];
   } catch {
     return initialEntries;
   }
