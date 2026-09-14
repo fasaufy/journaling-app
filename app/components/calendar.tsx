@@ -1,26 +1,9 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { dateKey, entryDateKey, initialEntries, readEntries, type Mood } from "../lib/entries";
-
-type CalendarEntry = {
-  mood: Mood;
-  preview: string;
-};
-
-type CalendarDay = {
-  date: Date;
-  currentMonth: boolean;
-};
-
-const moodColors: Record<Mood, string> = {
-  Great: "#01b055",
-  Good: "#0d6efd",
-  Neutral: "#ff6025",
-  Low: "#df91f2",
-  Rough: "#ffadd2",
-};
+import { useEffect, useMemo, useState } from "react";
+import { dateKey, entryDateKey, initialEntries, readEntries, type Entry, type Mood, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = {
   Great: "/Great.svg",
@@ -36,20 +19,31 @@ const navItems = [
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 
-function getCalendarDays(month: Date): CalendarDay[] {
-  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-  const dayCount = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const leadingDays = firstDay.getDay();
-  const totalDays = Math.ceil((leadingDays + dayCount) / 7) * 7;
+const moodOrder: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
 
-  return Array.from({ length: totalDays }, (_, index) => {
-    const date = new Date(month.getFullYear(), month.getMonth(), index - leadingDays + 1);
-    return { date, currentMonth: date.getMonth() === month.getMonth() };
+function getWeekDates(anchorDate: Date) {
+  const start = new Date(anchorDate);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const value = new Date(start);
+    value.setDate(start.getDate() + index);
+    return value;
   });
 }
 
+function formatMonthYear(date: Date) {
+  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function formatFullDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(date);
+}
+
 function GlassButton({ children, className = "", onClick, label }: { children: React.ReactNode; className?: string; onClick?: () => void; label: string }) {
-  return <button className={`calendar-glass-button ${className}`} onClick={onClick} aria-label={label}>{children}</button>;
+  return <button type="button" className={`calendar-glass-button ${className}`.trim()} onClick={onClick} aria-label={label}>{children}</button>;
 }
 
 function Logo() {
@@ -58,10 +52,11 @@ function Logo() {
 
 function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
   const pathname = usePathname();
+
   return (
     <aside className="calendar-sidebar">
       <Logo />
-      <button className="calendar-new-entry" onClick={onNewEntry}>
+      <button type="button" className="calendar-new-entry" onClick={onNewEntry}>
         <img src="/add.svg" alt="" />
         <span>new entry</span>
       </button>
@@ -73,7 +68,7 @@ function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
           </a>
         ))}
       </nav>
-      <div className="calendar-streak">🔥 12 day streak</div>
+      <div className="calendar-streak">🔥 12 day current streak</div>
     </aside>
   );
 }
@@ -82,10 +77,10 @@ function MonthHeader({ month, onChangeMonth, onToday }: { month: Date; onChangeM
   return (
     <header className="calendar-header">
       <div className="calendar-heading-group">
-        <h1>{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h1>
+        <h1>{formatMonthYear(month)}</h1>
         <div className="calendar-month-buttons">
-          <GlassButton onClick={() => onChangeMonth(-1)} label="Previous month"><img src="/arrow-left.svg" alt="" /></GlassButton>
-          <GlassButton onClick={() => onChangeMonth(1)} label="Next month"><img src="/arrow-right.svg" alt="" /></GlassButton>
+          <GlassButton onClick={() => onChangeMonth(-1)} label="Previous week"><img src="/arrow-left.svg" alt="" /></GlassButton>
+          <GlassButton onClick={() => onChangeMonth(1)} label="Next week"><img src="/arrow-right.svg" alt="" /></GlassButton>
         </div>
       </div>
       <GlassButton className="calendar-today-button" onClick={onToday} label="Go to today">Today</GlassButton>
@@ -93,48 +88,143 @@ function MonthHeader({ month, onChangeMonth, onToday }: { month: Date; onChangeM
   );
 }
 
-function CalendarGrid({ month, entries, onSelectDay }: { month: Date; entries: Record<string, CalendarEntry>; onSelectDay: (date: Date) => void }) {
-  const days = getCalendarDays(month);
-  const todayKey = dateKey(new Date());
-  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
+function MoodLegend() {
   return (
-    <section className="calendar-grid-section" aria-label="Monthly calendar">
-      <div className="calendar-weekdays">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
-      <div className="calendar-grid">
-        {days.map(({ date, currentMonth }) => {
-          const key = dateKey(date);
-          const entry = entries[key];
-          const today = key === todayKey;
-          return (
-            <button className={`calendar-cell${currentMonth ? "" : " outside-month"}${today ? " today" : ""}`} key={key} onClick={() => onSelectDay(date)}>
-              <span className="calendar-cell-heading">
-                <span className="calendar-day-number">{date.getDate()}</span>
-                {entry && <img className="mood-icon" src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />}
-              </span>
-              {today && <span className="today-label">today</span>}
-              {entry && <span className="calendar-preview">{entry.preview}</span>}
-            </button>
-          );
-        })}
-      </div>
-    </section>
+    <div className="calendar-mood-legend" aria-label="Mood legend">
+      {moodOrder.map((mood) => (
+        <span key={mood}>
+          <img src={moodIcons[mood]} alt="" />
+          {mood}
+        </span>
+      ))}
+    </div>
   );
 }
 
-function CalendarFooter() {
+function StreakBanner() {
+  return <div className="calendar-streak-banner">🔥 12 day current streak · Longest: 34 days</div>;
+}
+
+function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates: Date[]; entries: Record<string, Entry>; selectedDate: Date; onSelectDay: (date: Date) => void; }) {
+  const todayKey = dateKey(new Date());
+
   return (
-    <footer className="calendar-footer">
-      <div className="calendar-streak-summary">Current streak: 12 days <span>·</span> Longest streak: 34 days</div>
-      <div className="mood-legend" aria-label="Mood legend">
-        {(Object.keys(moodColors) as Mood[]).map((mood) => <span key={mood}><img src={moodIcons[mood]} alt="" />{mood}</span>)}
+    <div className="calendar-week-list" aria-label="Weekly calendar">
+      {weekDates.map((date) => {
+        const key = dateKey(date);
+        const entry = entries[key];
+        const isSelected = key === dateKey(selectedDate);
+        const isToday = key === todayKey;
+        const dayLabel = date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1);
+
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`calendar-day-row${isSelected ? " selected" : ""}${isToday ? " today" : ""}`}
+            onClick={() => onSelectDay(date)}
+            aria-label={entry ? `Open ${formatFullDate(date)}` : `Create entry for ${formatFullDate(date)}`}
+          >
+            <div className="calendar-day-label-block">
+              <span className="calendar-day-initial">{dayLabel}</span>
+              <span className="calendar-day-number">{date.getDate()}</span>
+            </div>
+            <div className="calendar-day-preview">{entry ? entry.preview : ""}</div>
+            <div className="calendar-day-mood">
+              {entry ? <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} /> : null}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelete: () => void; onEdit: () => void }) {
+  if (!entry) {
+    return (
+      <div className="calendar-empty-detail">
+        <p>No entry for this day yet. Start writing.</p>
+        <button type="button" className="primary-button calendar-empty-action" onClick={onEdit}>
+          <span>Start writing</span>
+        </button>
       </div>
-    </footer>
+    );
+  }
+
+  return (
+    <article className="calendar-detail-panel">
+      <header className="calendar-detail-header">
+        <div>
+          <h2>{entry.date}</h2>
+          <div className="calendar-detail-meta">
+            <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />
+            <strong>{entry.mood}</strong>
+            <span className="calendar-detail-divider" aria-hidden="true" />
+            {entry.tags.map((tag) => (
+              <span key={tag} className="home-tag-chip">{tag}</span>
+            ))}
+          </div>
+        </div>
+        <div className="calendar-detail-actions">
+          <GlassButton onClick={onEdit} label="Edit entry"><img src="/edit.svg" alt="" /></GlassButton>
+          <GlassButton onClick={onDelete} label="Delete entry"><img src="/delete.svg" alt="" /></GlassButton>
+        </div>
+      </header>
+      <div className="calendar-detail-body">
+        {entry.body.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry; onBack: () => void; onDelete: () => void; onEdit: () => void }) {
+  return (
+    <motion.article
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="calendar-mobile-detail"
+    >
+      <header className="calendar-mobile-detail-top">
+        <button type="button" onClick={onBack} aria-label="Back to calendar">
+          <img src="/arrow-left.svg" alt="" />
+        </button>
+        <span>Week view</span>
+        <button type="button" onClick={onDelete} aria-label="Delete entry">
+          <img src="/delete.svg" alt="" />
+        </button>
+      </header>
+      <div className="calendar-mobile-detail-heading">
+        <h2>{entry.date}</h2>
+        <div className="calendar-detail-meta">
+          <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />
+          <strong>{entry.mood}</strong>
+          <span className="calendar-detail-divider" aria-hidden="true" />
+          {entry.tags.map((tag) => (
+            <span key={tag} className="home-tag-chip">{tag}</span>
+          ))}
+        </div>
+      </div>
+      <div className="calendar-detail-body">
+        {entry.body.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+      <button type="button" className="primary-button calendar-mobile-edit" onClick={onEdit}>
+        <img src="/edit.svg" alt="" />
+        <span>Edit note</span>
+      </button>
+    </motion.article>
   );
 }
 
 function MobileNavigation() {
   const pathname = usePathname();
+
   return (
     <nav className="calendar-mobile-nav" aria-label="Mobile navigation">
       <div className="calendar-mobile-segmented">
@@ -153,49 +243,114 @@ function MobileNavigation() {
 
 export function CalendarPage() {
   const router = useRouter();
-  const currentDate = new Date();
-  const [month, setMonth] = useState(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
-  const [entries, setEntries] = useState<Record<string, CalendarEntry>>(() => Object.fromEntries(initialEntries.map((entry) => [entryDateKey(entry.date), { mood: entry.mood, preview: entry.preview }])));
+  const today = new Date();
+  const [entries, setEntries] = useState<Entry[]>(() => readEntries());
+  const [selectedDate, setSelectedDate] = useState(new Date(today));
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [mobileDetailDate, setMobileDetailDate] = useState<Date | null>(null);
 
   useEffect(() => {
-    const updateEntries = () => setEntries(Object.fromEntries(readEntries().map((entry) => [entryDateKey(entry.date), { mood: entry.mood, preview: entry.preview }])));
-    updateEntries();
-    window.addEventListener("storage", updateEntries);
-    return () => window.removeEventListener("storage", updateEntries);
+    const handleStorage = () => setEntries(readEntries());
+    handleStorage();
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  function changeMonth(offset: number) {
-    setMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
+  const entriesByKey = useMemo(
+    () => Object.fromEntries(entries.map((entry) => [entryDateKey(entry.date), entry])),
+    [entries]
+  );
+
+  const selectedKey = dateKey(selectedDate);
+  const selectedEntry = entriesByKey[selectedKey] ?? null;
+  const mobileEntry = mobileDetailDate ? entriesByKey[dateKey(mobileDetailDate)] ?? null : null;
+
+  function shiftWeek(offset: number) {
+    setSelectedDate((current) => {
+      const next = new Date(current);
+      next.setDate(next.getDate() + offset * 7);
+      return next;
+    });
+  }
+
+  function goToToday() {
+    const now = new Date();
+    setSelectedDate(now);
+    setMobileDetailOpen(false);
+    setMobileDetailDate(null);
   }
 
   function openDay(date: Date) {
     const key = dateKey(date);
-    const entry = Object.entries(entries).find(([entryKey]) => entryKey === key)?.[1];
+    const entry = entriesByKey[key];
+    setSelectedDate(date);
+
     if (entry) {
-      const existingEntry = readEntries().find((item) => entryDateKey(item.date) === key);
-      if (existingEntry) {
-        router.push(`/home?edit=${existingEntry.id}&date=${key}`);
-        return;
-      }
+      setMobileDetailDate(date);
+      setMobileDetailOpen(true);
+      return;
     }
+
     router.push(`/home?new=1&date=${key}`);
   }
 
-  function goToToday() {
-    setMonth(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+  function deleteEntryForDate(date: Date) {
+    const key = dateKey(date);
+    const nextEntries = entries.filter((entry) => entryDateKey(entry.date) !== key);
+    writeEntries(nextEntries);
+    setEntries(nextEntries);
+    if (mobileDetailOpen) {
+      setMobileDetailOpen(false);
+      setMobileDetailDate(null);
+    }
+  }
+
+  function editEntry(entry: Entry | null) {
+    if (!entry) {
+      router.push(`/home?new=1&date=${selectedKey}`);
+      return;
+    }
+
+    router.push(`/home?edit=${entry.id}&date=${selectedKey}`);
   }
 
   return (
     <main className="calendar-page">
       <Sidebar onNewEntry={() => router.push("/home?new=1")} />
-      <section className="calendar-card">
-        <div className="calendar-card-inner">
-          <MonthHeader month={month} onChangeMonth={changeMonth} onToday={goToToday} />
-          <CalendarGrid month={month} entries={entries} onSelectDay={openDay} />
-          <CalendarFooter />
+
+      <section className="calendar-shell" aria-label="Calendar overview">
+        <div className="calendar-list-pane">
+          <MonthHeader month={selectedDate} onChangeMonth={shiftWeek} onToday={goToToday} />
+          <WeekList weekDates={weekDates} entries={entriesByKey} selectedDate={selectedDate} onSelectDay={openDay} />
+          <MoodLegend />
+          <StreakBanner />
         </div>
-        <div className="calendar-content-fade" aria-hidden="true" />
+
+        <aside className="calendar-detail-pane">
+          <DetailPanel entry={selectedEntry} onDelete={() => deleteEntryForDate(selectedDate)} onEdit={() => editEntry(selectedEntry)} />
+        </aside>
       </section>
+
+      <div className="calendar-mobile-layer">
+        <AnimatePresence mode="wait">
+          {mobileDetailOpen && mobileEntry ? (
+            <MobileDetail
+              key={dateKey(mobileDetailDate ?? selectedDate)}
+              entry={mobileEntry}
+              onBack={() => {
+                setMobileDetailOpen(false);
+                setMobileDetailDate(null);
+              }}
+              onDelete={() => {
+                if (mobileDetailDate) deleteEntryForDate(mobileDetailDate);
+              }}
+              onEdit={() => editEntry(mobileEntry)}
+            />
+          ) : null}
+        </AnimatePresence>
+      </div>
+
       <MobileNavigation />
     </main>
   );
