@@ -1,5 +1,39 @@
 export type Mood = "Great" | "Good" | "Neutral" | "Low" | "Rough";
 
+export const stickerKeys = [
+  "wave", "fist", "love", "see", "peace", "star", "camera", "film", "earth", "island", "mountains",
+  "great", "good", "neutral", "low", "rough",
+] as const;
+
+export type StickerKey = typeof stickerKeys[number];
+
+export const stickerAssets: Record<StickerKey, string> = {
+  wave: "/wave.svg",
+  fist: "/fist.svg",
+  love: "/love.svg",
+  see: "/see.svg",
+  peace: "/peace.svg",
+  star: "/star.svg",
+  camera: "/camera.svg",
+  film: "/film.svg",
+  earth: "/earth.svg",
+  island: "/Island.svg",
+  mountains: "/Mountains.svg",
+  great: "/Great.svg",
+  good: "/Good.svg",
+  neutral: "/Neutral.svg",
+  low: "/Low.svg",
+  rough: "/Rough.svg",
+};
+
+export type PlacedSticker = {
+  id: string;
+  key: StickerKey;
+  x: number;
+  y: number;
+  rotation: number;
+};
+
 export type Entry = {
   id: string;
   date: string;
@@ -7,6 +41,7 @@ export type Entry = {
   tags: string[];
   preview: string;
   body: string[];
+  stickers?: PlacedSticker[];
 };
 
 export const initialEntries: Entry[] = [

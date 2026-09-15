@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { dateKey, entryDateKey, readEntries, type Entry, type Mood, writeEntries } from "../lib/entries";
+import { dateKey, entryDateKey, type PlacedSticker, readEntries, stickerAssets, type Entry, type Mood, type StickerKey, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = {
   Great: "/Great.svg",
@@ -12,6 +12,35 @@ const moodIcons: Record<Mood, string> = {
   Low: "/Low.svg",
   Rough: "/Rough.svg",
 };
+
+function StickerFrame({ stickerKey, style }: { stickerKey: StickerKey; style?: React.CSSProperties }) {
+  return (
+    <div className="entry-sticker-frame" style={style}>
+      <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
+      <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
+      <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
+      <span className="entry-sticker-corner entry-sticker-corner-br" aria-hidden="true" />
+      <img src={stickerAssets[stickerKey]} alt="" />
+    </div>
+  );
+}
+
+function StickerCanvas({ stickers }: { stickers?: PlacedSticker[] }) {
+  if (!stickers || stickers.length === 0) return null;
+  return (
+    <div className="entry-sticker-canvas" aria-hidden="true">
+      {stickers.map((sticker) => (
+        <div
+          key={sticker.id}
+          className="entry-sticker-placed"
+          style={{ left: `${sticker.x}%`, top: `${sticker.y}%` }}
+        >
+          <StickerFrame stickerKey={sticker.key} style={{ transform: `rotate(${sticker.rotation}deg)` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
@@ -129,7 +158,7 @@ function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelet
   if (!entry) {
     return (
       <div className="calendar-empty-detail">
-        <span className="calendar-empty-icon" aria-hidden="true">🗒️</span>
+        <img className="calendar-empty-icon" src="/Notepad.svg" alt="" />
         <h2>Nothing here just yet</h2>
         <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
           <img src="/add.svg" alt="" />
@@ -159,9 +188,10 @@ function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelet
         </div>
       </header>
       <div className="calendar-detail-body">
-        {entry.body.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
+        {entry.body.map((paragraph, index) => (
+          <p key={index} dangerouslySetInnerHTML={{ __html: paragraph }} />
         ))}
+        <StickerCanvas stickers={entry.stickers} />
       </div>
     </article>
   );
@@ -202,9 +232,10 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry | null
             </div>
           </div>
           <div className="calendar-detail-body">
-            {entry.body.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
+            {entry.body.map((paragraph, index) => (
+              <p key={index} dangerouslySetInnerHTML={{ __html: paragraph }} />
             ))}
+            <StickerCanvas stickers={entry.stickers} />
           </div>
           <button type="button" className="primary-button calendar-mobile-edit" onClick={onEdit}>
             <img src="/edit.svg" alt="" />
@@ -213,7 +244,7 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry | null
         </>
       ) : (
         <div className="calendar-empty-detail">
-          <span className="calendar-empty-icon" aria-hidden="true">🗒️</span>
+          <img className="calendar-empty-icon" src="/Notepad.svg" alt="" />
           <h2>Nothing here just yet</h2>
           <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
             <img src="/add.svg" alt="" />
@@ -237,7 +268,7 @@ function MobileNavigation() {
           </a>
         ))}
       </div>
-      <a className="calendar-mobile-add" href="/home?new=1" aria-label="New entry">
+      <a className="calendar-mobile-add" href="/home?new=1&from=calendar" aria-label="New entry">
         <img src="/add.svg" alt="New entry" />
       </a>
     </nav>
@@ -303,16 +334,16 @@ export function CalendarPage() {
 
   function editEntry(entry: Entry | null) {
     if (!entry) {
-      router.push(`/home?new=1&date=${selectedKey}`);
+      router.push(`/home?new=1&date=${selectedKey}&from=calendar`);
       return;
     }
 
-    router.push(`/home?edit=${entry.id}&date=${selectedKey}`);
+    router.push(`/home?edit=${entry.id}&date=${selectedKey}&from=calendar`);
   }
 
   return (
     <main className="calendar-page">
-      <Sidebar onNewEntry={() => router.push("/home?new=1")} />
+      <Sidebar onNewEntry={() => router.push("/home?new=1&from=calendar")} />
 
       <section className="calendar-shell" aria-label="Calendar overview">
         <div className="calendar-list-pane">
