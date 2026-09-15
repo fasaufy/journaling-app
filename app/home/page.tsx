@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { entryDateKey, initialEntries, type PlacedSticker, stickerAssets, stickerKeys, type Entry, type Mood, readEntries, type StickerKey, writeEntries } from "../lib/entries";
+import { entryDateKey, initialEntries, type PlacedSticker, stickerAssets, stickerColors, stickerKeys, type Entry, type Mood, readEntries, type StickerKey, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = { Great: "/Great.svg", Good: "/Good.svg", Neutral: "/Neutral.svg", Low: "/Low.svg", Rough: "/Rough.svg" };
 const navItems = [
@@ -95,14 +95,28 @@ function EntryCard({ entry, selected, onSelect }: { entry: Entry; selected: bool
   return <button className={`home-entry-card${selected ? " selected" : ""}`} onClick={onSelect}>{card}</button>;
 }
 
-function StickerFrame({ stickerKey, style }: { stickerKey: StickerKey; style?: CSSProperties }) {
+function StickerGlyph({ stickerKey, color }: { stickerKey: StickerKey; color: string }) {
+  const maskImage = `url(${stickerAssets[stickerKey]})`;
   return (
-    <div className="entry-sticker-frame" style={style}>
-      <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-br" aria-hidden="true" />
-      <img src={stickerAssets[stickerKey]} alt="" />
+    <span
+      className="entry-sticker-glyph"
+      style={{ backgroundColor: color, WebkitMaskImage: maskImage, maskImage } as CSSProperties}
+    />
+  );
+}
+
+function StickerFrame({ stickerKey, color, selected, style }: { stickerKey: StickerKey; color?: string; selected?: boolean; style?: CSSProperties }) {
+  return (
+    <div className={`entry-sticker-frame${selected ? " selected" : ""}`} style={style}>
+      {selected ? (
+        <>
+          <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
+          <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
+          <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
+          <span className="entry-sticker-corner entry-sticker-corner-br" aria-hidden="true" />
+        </>
+      ) : null}
+      {color ? <StickerGlyph stickerKey={stickerKey} color={color} /> : <img src={stickerAssets[stickerKey]} alt="" />}
     </div>
   );
 }
@@ -113,7 +127,7 @@ function StickerCanvas({ stickers }: { stickers?: PlacedSticker[] }) {
     <div className="entry-sticker-canvas" aria-hidden="true">
       {stickers.map((sticker) => (
         <div key={sticker.id} className="entry-sticker-placed" style={stickerPositionStyle(sticker)}>
-          <StickerFrame stickerKey={sticker.key} style={stickerRotationStyle(sticker)} />
+          <StickerFrame stickerKey={sticker.key} color={sticker.color} style={stickerRotationStyle(sticker)} />
         </div>
       ))}
     </div>
@@ -128,24 +142,71 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry; onBac
   return <motion.article initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: .24, ease: [0.22, 1, 0.36, 1] }} className="home-mobile-detail"><header className="home-mobile-detail-top"><button onClick={onBack} aria-label="Back to all entries"><img src="/arrow-left.svg" alt="" /></button><span>All entries</span><button onClick={onDelete} aria-label="Delete entry"><img src="/delete.svg" alt="" /></button></header><div className="home-mobile-detail-heading"><h2>{entry.date}</h2><div className="home-detail-meta"><img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} /><strong>{entry.mood}</strong><span className="home-detail-divider" />{entry.tags.map((tag) => <span className="home-tag-chip" key={tag}>{tag}</span>)}</div></div><div className="home-detail-body">{entry.body.map((paragraph, index) => <p key={index} dangerouslySetInnerHTML={{ __html: paragraph }} />)}<StickerCanvas stickers={entry.stickers} /></div><button className="primary-button home-edit-note" onClick={onEdit}><img src="/edit.svg" alt="" /><span>Edit note</span></button></motion.article>;
 }
 
+function RemoveNoteModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <motion.div
+      className="confirm-modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] } }}
+      exit={{ opacity: 0, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
+      onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}
+    >
+      <motion.div
+        className="confirm-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-note-heading"
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }}
+        exit={{ opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
+      >
+        <div className="confirm-modal-copy">
+          <h2 id="remove-note-heading">Remove the note?</h2>
+          <p>This note will be gone for good.</p>
+        </div>
+        <button type="button" className="confirm-modal-danger" onClick={onConfirm}>
+          <img src="/delete.svg" alt="" />
+          <span>remove note</span>
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function DraggableSticker({
   sticker,
+  selected,
+  onSelect,
   onChange,
   onRemove,
+  onColor,
 }: {
   sticker: PlacedSticker;
+  selected: boolean;
+  onSelect: () => void;
   onChange: (patch: Partial<PlacedSticker>) => void;
   onRemove: () => void;
+  onColor: (color: string) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [live, setLive] = useState<{ x: number; y: number; rotation: number } | null>(null);
   const [dragMode, setDragMode] = useState<"move" | "rotate" | null>(null);
   const current = live ?? sticker;
+  const stopPropagationOnly = (event: React.PointerEvent) => event.stopPropagation();
 
   function handleMovePointerDown(event: React.PointerEvent) {
     event.preventDefault();
     event.stopPropagation();
+    onSelect();
     const container = wrapRef.current?.parentElement;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -197,24 +258,50 @@ function DraggableSticker({
   return (
     <div
       ref={wrapRef}
-      className={`entry-sticker-placed${dragMode ? " dragging" : ""}`}
+      className={`entry-sticker-placed${dragMode ? " dragging" : ""}${selected ? " selected" : ""}`}
       style={stickerPositionStyle(current)}
     >
-      <div ref={frameRef} className="entry-sticker-frame" style={stickerRotationStyle(current)} onPointerDown={handleMovePointerDown}>
-        <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
-        <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
-        <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
-        <span
-          className="entry-sticker-corner entry-sticker-corner-br"
-          onPointerDown={handleRotatePointerDown}
-          role="slider"
-          aria-label="Rotate sticker"
-          aria-valuenow={current.rotation}
-          tabIndex={0}
-        />
-        <img src={stickerAssets[sticker.key]} alt="" draggable={false} />
+      <div ref={frameRef} className={`entry-sticker-frame${selected ? " selected" : ""}`} style={stickerRotationStyle(current)} onPointerDown={handleMovePointerDown}>
+        {selected ? (
+          <>
+            <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
+            <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
+            <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
+            <span
+              className="entry-sticker-corner entry-sticker-corner-br"
+              onPointerDown={handleRotatePointerDown}
+              role="slider"
+              aria-label="Rotate sticker"
+              aria-valuenow={current.rotation}
+              tabIndex={0}
+            />
+          </>
+        ) : null}
+        {sticker.color ? (
+          <StickerGlyph stickerKey={sticker.key} color={sticker.color} />
+        ) : (
+          <img src={stickerAssets[sticker.key]} alt="" draggable={false} />
+        )}
       </div>
-      <button type="button" className="entry-sticker-remove" onClick={onRemove}>remove</button>
+      {selected ? (
+        <div className="entry-sticker-controls" onPointerDown={stopPropagationOnly}>
+          <div className="entry-sticker-swatches">
+            {stickerColors.map((color) => (
+              <button
+                key={color.key}
+                type="button"
+                className={`entry-sticker-swatch${sticker.color === color.value ? " active" : ""}`}
+                style={{ background: color.value }}
+                onClick={() => onColor(color.value)}
+                aria-label={`${color.key} sticker color`}
+                aria-pressed={sticker.color === color.value}
+              />
+            ))}
+          </div>
+          <div className="entry-sticker-controls-divider" aria-hidden="true" />
+          <button type="button" className="entry-sticker-remove" onClick={onRemove}>remove</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -369,8 +456,8 @@ function EditorMoodsAndTags({
               }
             }}
           />
-          <button type="button" className="entry-editor-tag-add" onClick={addTag} aria-label="Add tag"><img src="/add.svg" alt="" /></button>
         </div>
+        <button type="button" className="entry-editor-tag-add" onClick={addTag} aria-label="Add a tag"><img src="/add.svg" alt="" /></button>
         <span className="entry-editor-tag-counter mono">{draftTags.length} of 5</span>
       </div>
     </div>
@@ -393,9 +480,11 @@ function HomePageContent() {
   const [draftTags, setDraftTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [draftStickers, setDraftStickers] = useState<PlacedSticker[]>([]);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [saveState, setSaveState] = useState("Saved");
   const [hasEdited, setHasEdited] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<"list" | "editor" | null>(null);
 
   useEffect(() => {
     setEntries(readEntries());
@@ -435,6 +524,7 @@ function HomePageContent() {
       setDraftTags([]);
       setTagInput("");
       setDraftStickers([]);
+      setSelectedStickerId(null);
       setStickerPickerOpen(false);
       setSaveState("Saved");
       setHasEdited(false);
@@ -452,6 +542,7 @@ function HomePageContent() {
       setDraftTags(entry.tags);
       setTagInput("");
       setDraftStickers(entry.stickers ?? []);
+      setSelectedStickerId(null);
       setStickerPickerOpen(false);
       setSaveState("Saved");
       setHasEdited(false);
@@ -507,9 +598,30 @@ function HomePageContent() {
 
   const deleteEntry = () => {
     if (!selected) return;
-    if (window.confirm(`Delete the entry from ${selected.date}?`)) {
+    setConfirmDelete("list");
+  };
+
+  const cancelDelete = () => setConfirmDelete(null);
+
+  const confirmDeleteEntry = () => {
+    if (confirmDelete === "list") {
+      if (!selected) return;
+      const next = entries.filter((entry) => entry.id !== selected.id);
+      writeEntries(next);
+      setEntries(next);
       setMobileDetail(false);
+      setConfirmDelete(null);
       router.push("/home");
+      return;
+    }
+
+    if (confirmDelete === "editor") {
+      const entryId = searchParams.get("edit") ?? `entry-${entryDateKey(draftDate)}`;
+      const next = entries.filter((entry) => entry.id !== entryId);
+      writeEntries(next);
+      setEntries(next);
+      setConfirmDelete(null);
+      router.push(editorEntryPoint);
     }
   };
 
@@ -566,6 +678,7 @@ function HomePageContent() {
   const addSticker = (key: StickerKey) => {
     const sticker: PlacedSticker = { id: makeStickerId(), key, x: 50, y: 50, rotation: 0 };
     setDraftStickers((current) => [...current, sticker]);
+    setSelectedStickerId(sticker.id);
     setStickerPickerOpen(false);
     setHasEdited(true);
   };
@@ -577,6 +690,7 @@ function HomePageContent() {
 
   const removeStickerById = (id: string) => {
     setDraftStickers((current) => current.filter((item) => item.id !== id));
+    setSelectedStickerId((current) => (current === id ? null : current));
     setHasEdited(true);
   };
 
@@ -605,15 +719,13 @@ function HomePageContent() {
                 <span>Close</span>
               </button>
               <div className="entry-editor-status mono">{saveState}</div>
-              <button type="button" className="entry-editor-delete" onClick={() => {
-                if (window.confirm("Delete this entry?")) router.push(editorEntryPoint);
-              }}>
+              <button type="button" className="entry-editor-delete" onClick={() => setConfirmDelete("editor")}>
                 <img src="/delete.svg" alt="" />
                 <span>Delete</span>
               </button>
             </div>
 
-            <div className="entry-editor-shell">
+            <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
               <header className="entry-editor-header">
                 <input
                   aria-label="Entry date"
@@ -639,8 +751,11 @@ function HomePageContent() {
                   <DraggableSticker
                     key={sticker.id}
                     sticker={sticker}
+                    selected={sticker.id === selectedStickerId}
+                    onSelect={() => setSelectedStickerId(sticker.id)}
                     onChange={(patch) => updateSticker(sticker.id, patch)}
                     onRemove={() => removeStickerById(sticker.id)}
+                    onColor={(color) => updateSticker(sticker.id, { color })}
                   />
                 ))}
                 <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
@@ -677,15 +792,13 @@ function HomePageContent() {
               <span>Close</span>
             </button>
             <div className="entry-editor-status mono">{saveState}</div>
-            <button type="button" className="entry-editor-delete" onClick={() => {
-              if (window.confirm("Delete this entry?")) router.push(editorEntryPoint);
-            }}>
+            <button type="button" className="entry-editor-delete" onClick={() => setConfirmDelete("editor")}>
               <img src="/delete.svg" alt="" />
               <span>Delete</span>
             </button>
           </div>
 
-          <div className="entry-editor-shell">
+          <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
             <header className="entry-editor-header">
               <input
                 aria-label="Entry date"
@@ -705,8 +818,11 @@ function HomePageContent() {
                 <DraggableSticker
                   key={sticker.id}
                   sticker={sticker}
+                  selected={sticker.id === selectedStickerId}
+                  onSelect={() => setSelectedStickerId(sticker.id)}
                   onChange={(patch) => updateSticker(sticker.id, patch)}
                   onRemove={() => removeStickerById(sticker.id)}
+                  onColor={(color) => updateSticker(sticker.id, { color })}
                 />
               ))}
             </div>
@@ -733,6 +849,10 @@ function HomePageContent() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {confirmDelete ? <RemoveNoteModal onCancel={cancelDelete} onConfirm={confirmDeleteEntry} /> : null}
+      </AnimatePresence>
     </main>
   );
 }

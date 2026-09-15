@@ -13,14 +13,15 @@ const moodIcons: Record<Mood, string> = {
   Rough: "/Rough.svg",
 };
 
-function StickerFrame({ stickerKey, style }: { stickerKey: StickerKey; style?: React.CSSProperties }) {
+function StickerFrame({ stickerKey, color, style }: { stickerKey: StickerKey; color?: string; style?: React.CSSProperties }) {
+  const maskImage = `url(${stickerAssets[stickerKey]})`;
   return (
     <div className="entry-sticker-frame" style={style}>
-      <span className="entry-sticker-corner entry-sticker-corner-tl" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-tr" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-bl" aria-hidden="true" />
-      <span className="entry-sticker-corner entry-sticker-corner-br" aria-hidden="true" />
-      <img src={stickerAssets[stickerKey]} alt="" />
+      {color ? (
+        <span className="entry-sticker-glyph" style={{ backgroundColor: color, WebkitMaskImage: maskImage, maskImage } as React.CSSProperties} />
+      ) : (
+        <img src={stickerAssets[stickerKey]} alt="" />
+      )}
     </div>
   );
 }
@@ -35,7 +36,7 @@ function StickerCanvas({ stickers }: { stickers?: PlacedSticker[] }) {
           className="entry-sticker-placed"
           style={{ left: `${sticker.x}%`, top: `${sticker.y}%` }}
         >
-          <StickerFrame stickerKey={sticker.key} style={{ transform: `rotate(${sticker.rotation}deg)` }} />
+          <StickerFrame stickerKey={sticker.key} color={sticker.color} style={{ transform: `rotate(${sticker.rotation}deg)` }} />
         </div>
       ))}
     </div>
@@ -154,6 +155,21 @@ function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates
   );
 }
 
+const moodLegendOrder: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
+
+function MoodLegend() {
+  return (
+    <div className="calendar-mobile-legend" aria-hidden="true">
+      {moodLegendOrder.map((mood) => (
+        <span key={mood}>
+          <img src={moodIcons[mood]} alt="" />
+          {mood}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelete: () => void; onEdit: () => void }) {
   if (!entry) {
     return (
@@ -256,6 +272,45 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry | null
   );
 }
 
+function RemoveNoteModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <motion.div
+      className="confirm-modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] } }}
+      exit={{ opacity: 0, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
+      onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}
+    >
+      <motion.div
+        className="confirm-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-note-heading"
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }}
+        exit={{ opacity: 0, scale: 0.96, y: 8, transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } }}
+      >
+        <div className="confirm-modal-copy">
+          <h2 id="remove-note-heading">Remove the note?</h2>
+          <p>This note will be gone for good.</p>
+        </div>
+        <button type="button" className="confirm-modal-danger" onClick={onConfirm}>
+          <img src="/delete.svg" alt="" />
+          <span>remove note</span>
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function MobileNavigation() {
   const pathname = usePathname();
 
@@ -282,6 +337,7 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(new Date(today));
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [mobileDetailDate, setMobileDetailDate] = useState<Date | null>(null);
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const handleStorage = () => setEntries(readEntries());
@@ -349,10 +405,11 @@ export function CalendarPage() {
         <div className="calendar-list-pane">
           <MonthHeader month={selectedDate} onChangeMonth={shiftWeek} onToday={goToToday} />
           <WeekList weekDates={weekDates} entries={entriesByKey} selectedDate={selectedDate} onSelectDay={openDay} />
+          <MoodLegend />
         </div>
 
         <aside className="calendar-detail-pane">
-          <DetailPanel entry={selectedEntry} onDelete={() => deleteEntryForDate(selectedDate)} onEdit={() => editEntry(selectedEntry)} />
+          <DetailPanel entry={selectedEntry} onDelete={() => setConfirmDeleteDate(selectedDate)} onEdit={() => editEntry(selectedEntry)} />
         </aside>
       </section>
 
@@ -367,7 +424,7 @@ export function CalendarPage() {
                 setMobileDetailDate(null);
               }}
               onDelete={() => {
-                if (mobileDetailDate) deleteEntryForDate(mobileDetailDate);
+                if (mobileDetailDate) setConfirmDeleteDate(mobileDetailDate);
               }}
               onEdit={() => editEntry(mobileEntry)}
             />
@@ -376,6 +433,18 @@ export function CalendarPage() {
       </div>
 
       <MobileNavigation />
+
+      <AnimatePresence>
+        {confirmDeleteDate ? (
+          <RemoveNoteModal
+            onCancel={() => setConfirmDeleteDate(null)}
+            onConfirm={() => {
+              deleteEntryForDate(confirmDeleteDate);
+              setConfirmDeleteDate(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </main>
   );
 }

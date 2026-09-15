@@ -78,10 +78,10 @@ function MobileBrand() {
   return (
     <div className="mobile-brand">
       <div className="mobile-brand-mark" aria-hidden="true">
-        <img src="/logo.svg" alt="" />
+        <img src="/logo-mark.svg" alt="" />
       </div>
       <div className="mobile-brand-wordmark" aria-hidden="true">
-        <img src="/logo.svg" alt="" />
+        <img src="/logo-wordmark.svg" alt="" />
       </div>
       <p>Your personal space to <span>write</span>.</p>
     </div>

@@ -32,7 +32,18 @@ export type PlacedSticker = {
   x: number;
   y: number;
   rotation: number;
+  color?: string;
 };
+
+export const stickerColors = [
+  { key: "blue", value: "#0d6efd" },
+  { key: "red", value: "#fd354c" },
+  { key: "orange", value: "#ff6025" },
+  { key: "green", value: "#01b055" },
+  { key: "pink", value: "#fd3596" },
+  { key: "lime", value: "#a6cf3e" },
+  { key: "black", value: "#131313" },
+] as const;
 
 export type Entry = {
   id: string;
