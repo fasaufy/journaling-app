@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { dateKey, entryDateKey, initialEntries, readEntries, type Entry, type Mood, writeEntries } from "../lib/entries";
+import { dateKey, entryDateKey, readEntries, type Entry, type Mood, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = {
   Great: "/Great.svg",
@@ -18,8 +18,6 @@ const navItems = [
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
   { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
-
-const moodOrder: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
 
 function getWeekDates(anchorDate: Date) {
   const start = new Date(anchorDate);
@@ -88,23 +86,6 @@ function MonthHeader({ month, onChangeMonth, onToday }: { month: Date; onChangeM
   );
 }
 
-function MoodLegend() {
-  return (
-    <div className="calendar-mood-legend" aria-label="Mood legend">
-      {moodOrder.map((mood) => (
-        <span key={mood}>
-          <img src={moodIcons[mood]} alt="" />
-          {mood}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function StreakBanner() {
-  return <div className="calendar-streak-banner">🔥 12 day current streak · Longest: 34 days</div>;
-}
-
 function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates: Date[]; entries: Record<string, Entry>; selectedDate: Date; onSelectDay: (date: Date) => void; }) {
   const todayKey = dateKey(new Date());
 
@@ -123,7 +104,7 @@ function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates
             type="button"
             className={`calendar-day-row${isSelected ? " selected" : ""}${isToday ? " today" : ""}`}
             onClick={() => onSelectDay(date)}
-            aria-label={entry ? `Open ${formatFullDate(date)}` : `Create entry for ${formatFullDate(date)}`}
+            aria-label={entry ? `Open ${formatFullDate(date)}` : `Select ${formatFullDate(date)}`}
           >
             <div className="calendar-day-label-block">
               <span className="calendar-day-initial">{dayLabel}</span>
@@ -131,7 +112,11 @@ function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates
             </div>
             <div className="calendar-day-preview">{entry ? entry.preview : ""}</div>
             <div className="calendar-day-mood">
-              {entry ? <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} /> : null}
+              {entry ? (
+                <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />
+              ) : (
+                <span className="calendar-day-mood-placeholder" aria-hidden="true" />
+              )}
             </div>
           </button>
         );
@@ -144,9 +129,11 @@ function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelet
   if (!entry) {
     return (
       <div className="calendar-empty-detail">
-        <p>No entry for this day yet. Start writing.</p>
-        <button type="button" className="primary-button calendar-empty-action" onClick={onEdit}>
-          <span>Start writing</span>
+        <span className="calendar-empty-icon" aria-hidden="true">🗒️</span>
+        <h2>Nothing here just yet</h2>
+        <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
+          <img src="/add.svg" alt="" />
+          <span>new entry</span>
         </button>
       </div>
     );
@@ -180,13 +167,12 @@ function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelet
   );
 }
 
-function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry; onBack: () => void; onDelete: () => void; onEdit: () => void }) {
+function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry | null; onBack: () => void; onDelete: () => void; onEdit: () => void }) {
   return (
     <motion.article
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ x: "100%", opacity: 0 }}
+      animate={{ x: 0, opacity: 1, transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] } }}
+      exit={{ x: "100%", opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] } }}
       className="calendar-mobile-detail"
     >
       <header className="calendar-mobile-detail-top">
@@ -194,30 +180,47 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry; onBac
           <img src="/arrow-left.svg" alt="" />
         </button>
         <span>Week view</span>
-        <button type="button" onClick={onDelete} aria-label="Delete entry">
-          <img src="/delete.svg" alt="" />
-        </button>
+        {entry ? (
+          <button type="button" onClick={onDelete} aria-label="Delete entry">
+            <img src="/delete.svg" alt="" />
+          </button>
+        ) : (
+          <span className="calendar-mobile-detail-spacer" aria-hidden="true" />
+        )}
       </header>
-      <div className="calendar-mobile-detail-heading">
-        <h2>{entry.date}</h2>
-        <div className="calendar-detail-meta">
-          <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />
-          <strong>{entry.mood}</strong>
-          <span className="calendar-detail-divider" aria-hidden="true" />
-          {entry.tags.map((tag) => (
-            <span key={tag} className="home-tag-chip">{tag}</span>
-          ))}
+      {entry ? (
+        <>
+          <div className="calendar-mobile-detail-heading">
+            <h2>{entry.date}</h2>
+            <div className="calendar-detail-meta">
+              <img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} />
+              <strong>{entry.mood}</strong>
+              <span className="calendar-detail-divider" aria-hidden="true" />
+              {entry.tags.slice(0, 2).map((tag) => (
+                <span key={tag} className="home-tag-chip">{tag}</span>
+              ))}
+            </div>
+          </div>
+          <div className="calendar-detail-body">
+            {entry.body.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          <button type="button" className="primary-button calendar-mobile-edit" onClick={onEdit}>
+            <img src="/edit.svg" alt="" />
+            <span>Edit note</span>
+          </button>
+        </>
+      ) : (
+        <div className="calendar-empty-detail">
+          <span className="calendar-empty-icon" aria-hidden="true">🗒️</span>
+          <h2>Nothing here just yet</h2>
+          <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
+            <img src="/add.svg" alt="" />
+            <span>new entry</span>
+          </button>
         </div>
-      </div>
-      <div className="calendar-detail-body">
-        {entry.body.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
-      <button type="button" className="primary-button calendar-mobile-edit" onClick={onEdit}>
-        <img src="/edit.svg" alt="" />
-        <span>Edit note</span>
-      </button>
+      )}
     </motion.article>
   );
 }
@@ -282,17 +285,9 @@ export function CalendarPage() {
   }
 
   function openDay(date: Date) {
-    const key = dateKey(date);
-    const entry = entriesByKey[key];
     setSelectedDate(date);
-
-    if (entry) {
-      setMobileDetailDate(date);
-      setMobileDetailOpen(true);
-      return;
-    }
-
-    router.push(`/home?new=1&date=${key}`);
+    setMobileDetailDate(date);
+    setMobileDetailOpen(true);
   }
 
   function deleteEntryForDate(date: Date) {
@@ -323,8 +318,6 @@ export function CalendarPage() {
         <div className="calendar-list-pane">
           <MonthHeader month={selectedDate} onChangeMonth={shiftWeek} onToday={goToToday} />
           <WeekList weekDates={weekDates} entries={entriesByKey} selectedDate={selectedDate} onSelectDay={openDay} />
-          <MoodLegend />
-          <StreakBanner />
         </div>
 
         <aside className="calendar-detail-pane">
@@ -334,7 +327,7 @@ export function CalendarPage() {
 
       <div className="calendar-mobile-layer">
         <AnimatePresence mode="wait">
-          {mobileDetailOpen && mobileEntry ? (
+          {mobileDetailOpen ? (
             <MobileDetail
               key={dateKey(mobileDetailDate ?? selectedDate)}
               entry={mobileEntry}
