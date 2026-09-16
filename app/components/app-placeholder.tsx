@@ -20,7 +20,6 @@ export function AppPlaceholder({ title, description }: { title: string; descript
         <nav className="calendar-sidebar-nav" aria-label="Main navigation">
           {navItems.map((item) => <a className={item.label === activeLabel ? "active" : ""} href={item.href} key={item.label}><img src={item.label === activeLabel ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}
         </nav>
-        <div className="calendar-streak">🔥 12 day streak</div>
       </aside>
       <section className="app-placeholder-card">
         <div className="app-placeholder-content">

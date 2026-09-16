@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { dateKey, entryDateKey, type PlacedSticker, readEntries, stickerAssets, type Entry, type Mood, type StickerKey, writeEntries } from "../lib/entries";
+import { dateKey, entryDateKey, initialEntries, type PlacedSticker, readEntries, stickerAssets, type Entry, type Mood, type StickerKey, writeEntries } from "../lib/entries";
 
 const moodIcons: Record<Mood, string> = {
   Great: "/Great.svg",
@@ -96,7 +96,6 @@ function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
           </a>
         ))}
       </nav>
-      <div className="calendar-streak">🔥 12 day current streak</div>
     </aside>
   );
 }
@@ -116,6 +115,24 @@ function MonthHeader({ month, onChangeMonth, onToday }: { month: Date; onChangeM
   );
 }
 
+const moodLegendOrder: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
+
+function MoodLegend() {
+  return (
+    <div className="calendar-mood-legend" aria-hidden="true">
+      <span className="calendar-mood-legend-label">Your mood:</span>
+      <div className="calendar-mood-legend-row">
+        {moodLegendOrder.map((mood) => (
+          <span className="calendar-mood-legend-item" key={mood}>
+            <img src={moodIcons[mood]} alt="" />
+            {mood}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates: Date[]; entries: Record<string, Entry>; selectedDate: Date; onSelectDay: (date: Date) => void; }) {
   const todayKey = dateKey(new Date());
 
@@ -126,13 +143,14 @@ function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates
         const entry = entries[key];
         const isSelected = key === dateKey(selectedDate);
         const isToday = key === todayKey;
+        const isOutsideMonth = date.getMonth() !== selectedDate.getMonth();
         const dayLabel = date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1);
 
         return (
           <button
             key={key}
             type="button"
-            className={`calendar-day-row${isSelected ? " selected" : ""}${isToday ? " today" : ""}`}
+            className={`calendar-day-row${isSelected ? " selected" : ""}${isToday ? " today" : ""}${isOutsideMonth ? " outside-month" : ""}${entry ? " has-entry" : ""}`}
             onClick={() => onSelectDay(date)}
             aria-label={entry ? `Open ${formatFullDate(date)}` : `Select ${formatFullDate(date)}`}
           >
@@ -151,21 +169,6 @@ function WeekList({ weekDates, entries, selectedDate, onSelectDay }: { weekDates
           </button>
         );
       })}
-    </div>
-  );
-}
-
-const moodLegendOrder: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
-
-function MoodLegend() {
-  return (
-    <div className="calendar-mobile-legend" aria-hidden="true">
-      {moodLegendOrder.map((mood) => (
-        <span key={mood}>
-          <img src={moodIcons[mood]} alt="" />
-          {mood}
-        </span>
-      ))}
     </div>
   );
 }
@@ -333,7 +336,7 @@ function MobileNavigation() {
 export function CalendarPage() {
   const router = useRouter();
   const today = new Date();
-  const [entries, setEntries] = useState<Entry[]>(() => readEntries());
+  const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [selectedDate, setSelectedDate] = useState(new Date(today));
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [mobileDetailDate, setMobileDetailDate] = useState<Date | null>(null);
@@ -404,8 +407,8 @@ export function CalendarPage() {
       <section className="calendar-shell" aria-label="Calendar overview">
         <div className="calendar-list-pane">
           <MonthHeader month={selectedDate} onChangeMonth={shiftWeek} onToday={goToToday} />
-          <WeekList weekDates={weekDates} entries={entriesByKey} selectedDate={selectedDate} onSelectDay={openDay} />
           <MoodLegend />
+          <WeekList weekDates={weekDates} entries={entriesByKey} selectedDate={selectedDate} onSelectDay={openDay} />
         </div>
 
         <aside className="calendar-detail-pane">

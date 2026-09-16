@@ -50,7 +50,7 @@ const stickerRotationStyle = (sticker: { rotation: number }): CSSProperties => (
 function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new entry</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav><div className="calendar-streak">🔥 12 day streak</div></aside>;
+  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new entry</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav></aside>;
 }
 
 function MobileNavigation() {
@@ -726,39 +726,41 @@ function HomePageContent() {
             </div>
 
             <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
-              <header className="entry-editor-header">
-                <input
-                  aria-label="Entry date"
-                  className="entry-editor-title"
-                  value={draftDate}
-                  onChange={(event) => {
-                    setDraftDate(event.target.value);
-                    setHasEdited(true);
-                  }}
-                />
-              </header>
-
-              <EditorToolbar
-                onAction={handleToolbarAction}
-                onAddSticker={addSticker}
-                pickerOpen={stickerPickerOpen}
-                onTogglePicker={toggleStickerPicker}
-              />
-
-              <div className="entry-editor-surface-wrap">
-                <EditorSurface editorRef={desktopEditorRef} onInput={(html) => handleEditorInput("desktop", html)} />
-                {draftStickers.map((sticker) => (
-                  <DraggableSticker
-                    key={sticker.id}
-                    sticker={sticker}
-                    selected={sticker.id === selectedStickerId}
-                    onSelect={() => setSelectedStickerId(sticker.id)}
-                    onChange={(patch) => updateSticker(sticker.id, patch)}
-                    onRemove={() => removeStickerById(sticker.id)}
-                    onColor={(color) => updateSticker(sticker.id, { color })}
+              <div className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}>
+                <header className="entry-editor-header">
+                  <input
+                    aria-label="Entry date"
+                    className="entry-editor-title"
+                    value={draftDate}
+                    onChange={(event) => {
+                      setDraftDate(event.target.value);
+                      setHasEdited(true);
+                    }}
                   />
-                ))}
-                <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
+                </header>
+
+                <EditorToolbar
+                  onAction={handleToolbarAction}
+                  onAddSticker={addSticker}
+                  pickerOpen={stickerPickerOpen}
+                  onTogglePicker={toggleStickerPicker}
+                />
+
+                <div className="entry-editor-surface-wrap">
+                  <EditorSurface editorRef={desktopEditorRef} onInput={(html) => handleEditorInput("desktop", html)} />
+                  {draftStickers.map((sticker) => (
+                    <DraggableSticker
+                      key={sticker.id}
+                      sticker={sticker}
+                      selected={sticker.id === selectedStickerId}
+                      onSelect={() => setSelectedStickerId(sticker.id)}
+                      onChange={(patch) => updateSticker(sticker.id, patch)}
+                      onRemove={() => removeStickerById(sticker.id)}
+                      onColor={(color) => updateSticker(sticker.id, { color })}
+                    />
+                  ))}
+                  <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
+                </div>
               </div>
 
               <div className="entry-editor-divider" aria-hidden="true" />
@@ -799,32 +801,34 @@ function HomePageContent() {
           </div>
 
           <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
-            <header className="entry-editor-header">
-              <input
-                aria-label="Entry date"
-                className="entry-editor-title"
-                value={draftDate}
-                onChange={(event) => {
-                  setDraftDate(event.target.value);
-                  setHasEdited(true);
-                }}
-              />
-            </header>
-
-            <div className="entry-editor-surface-wrap">
-              <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
-              <EditorSurface editorRef={mobileEditorRef} onInput={(html) => handleEditorInput("mobile", html)} />
-              {draftStickers.map((sticker) => (
-                <DraggableSticker
-                  key={sticker.id}
-                  sticker={sticker}
-                  selected={sticker.id === selectedStickerId}
-                  onSelect={() => setSelectedStickerId(sticker.id)}
-                  onChange={(patch) => updateSticker(sticker.id, patch)}
-                  onRemove={() => removeStickerById(sticker.id)}
-                  onColor={(color) => updateSticker(sticker.id, { color })}
+            <div className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}>
+              <header className="entry-editor-header">
+                <input
+                  aria-label="Entry date"
+                  className="entry-editor-title"
+                  value={draftDate}
+                  onChange={(event) => {
+                    setDraftDate(event.target.value);
+                    setHasEdited(true);
+                  }}
                 />
-              ))}
+              </header>
+
+              <div className="entry-editor-surface-wrap">
+                <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
+                <EditorSurface editorRef={mobileEditorRef} onInput={(html) => handleEditorInput("mobile", html)} />
+                {draftStickers.map((sticker) => (
+                  <DraggableSticker
+                    key={sticker.id}
+                    sticker={sticker}
+                    selected={sticker.id === selectedStickerId}
+                    onSelect={() => setSelectedStickerId(sticker.id)}
+                    onChange={(patch) => updateSticker(sticker.id, patch)}
+                    onRemove={() => removeStickerById(sticker.id)}
+                    onColor={(color) => updateSticker(sticker.id, { color })}
+                  />
+                ))}
+              </div>
             </div>
 
             <EditorToolbar

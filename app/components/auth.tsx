@@ -13,7 +13,7 @@ type PhotoAsset = {
 
 const collage: PhotoAsset[] = [
   { image: "/img-1.png", className: "photo-one", alt: "Friends looking up at the sky" },
-  { image: "/photo-2.png", className: "photo-two", alt: "Friends gathered together" },
+  { image: "/img-2.png", className: "photo-two", alt: "Friends gathered together" },
   { image: "/img-3.png", className: "photo-three", alt: "Friends running through the mountains" },
 ];
 
