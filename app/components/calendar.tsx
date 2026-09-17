@@ -86,7 +86,7 @@ function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
       <Logo />
       <button type="button" className="calendar-new-entry" onClick={onNewEntry}>
         <img src="/add.svg" alt="" />
-        <span>new entry</span>
+        <span>new notes</span>
       </button>
       <nav className="calendar-sidebar-nav" aria-label="Main navigation">
         {navItems.map((item) => (
@@ -181,7 +181,7 @@ function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelet
         <h2>Nothing here just yet</h2>
         <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
           <img src="/add.svg" alt="" />
-          <span>new entry</span>
+          <span>new notes</span>
         </button>
       </div>
     );
@@ -267,7 +267,7 @@ function MobileDetail({ entry, onBack, onDelete, onEdit }: { entry: Entry | null
           <h2>Nothing here just yet</h2>
           <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
             <img src="/add.svg" alt="" />
-            <span>new entry</span>
+            <span>new notes</span>
           </button>
         </div>
       )}

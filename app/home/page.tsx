@@ -50,7 +50,7 @@ const stickerRotationStyle = (sticker: { rotation: number }): CSSProperties => (
 function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new entry</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav></aside>;
+  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new notes</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav></aside>;
 }
 
 function MobileNavigation() {
@@ -311,16 +311,20 @@ function EditorToolbar({
   onAddSticker,
   pickerOpen,
   onTogglePicker,
+  wordCount,
 }: {
   onAction: (action: "bold" | "italic" | "underline" | "bullet" | "numbered" | "quote") => void;
   onAddSticker: (key: StickerKey) => void;
   pickerOpen: boolean;
   onTogglePicker: () => void;
+  wordCount: number;
 }) {
   const stopStealingFocus = (event: React.MouseEvent) => event.preventDefault();
 
   return (
     <div className="entry-editor-toolbar-wrap">
+      <div className="entry-editor-wordcount mono">{wordCount} words</div>
+
       <div className="entry-editor-toolbar" role="toolbar" aria-label="Formatting toolbar">
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("bold")} aria-label="Bold">B</button>
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("italic")} aria-label="Italic"><em>I</em></button>
@@ -469,6 +473,11 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const desktopEditorRef = useRef<HTMLDivElement | null>(null);
   const mobileEditorRef = useRef<HTMLDivElement | null>(null);
+  const desktopSurfaceWrapRef = useRef<HTMLDivElement | null>(null);
+  const mobileSurfaceWrapRef = useRef<HTMLDivElement | null>(null);
+  const desktopScrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const mobileScrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const stickerYRef = useRef(50);
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<HomeFilter>("all");
@@ -485,6 +494,8 @@ function HomePageContent() {
   const [saveState, setSaveState] = useState("Saved");
   const [hasEdited, setHasEdited] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<"list" | "editor" | null>(null);
+  const [desktopScrolled, setDesktopScrolled] = useState(false);
+  const [mobileScrolled, setMobileScrolled] = useState(false);
 
   useEffect(() => {
     setEntries(readEntries());
@@ -516,7 +527,32 @@ function HomePageContent() {
     if (mobileEditorRef.current) mobileEditorRef.current.innerHTML = html;
   }
 
+  const handleDesktopScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    setDesktopScrolled(event.currentTarget.scrollTop > 0);
+  };
+
+  const handleMobileScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    setMobileScrolled(event.currentTarget.scrollTop > 0);
+  };
+
+  function computeStickerY(surfaceWrap: HTMLDivElement | null) {
+    if (!surfaceWrap) return 50;
+    const scrollArea = surfaceWrap.closest(".entry-editor-scroll-area");
+    if (!scrollArea) return 50;
+    const scrollRect = scrollArea.getBoundingClientRect();
+    const surfaceRect = surfaceWrap.getBoundingClientRect();
+    if (surfaceRect.height <= 0) return 50;
+    const viewportCenterY = scrollRect.top + scrollRect.height / 2;
+    const percent = ((viewportCenterY - surfaceRect.top) / surfaceRect.height) * 100;
+    return Math.min(85, Math.max(15, percent));
+  }
+
   useEffect(() => {
+    if (desktopScrollAreaRef.current) desktopScrollAreaRef.current.scrollTop = 0;
+    if (mobileScrollAreaRef.current) mobileScrollAreaRef.current.scrollTop = 0;
+    setDesktopScrolled(false);
+    setMobileScrolled(false);
+
     if (routeMode === "new") {
       setDraftDate(formatDateKey(selectedDate));
       setDraftBody("");
@@ -576,6 +612,7 @@ function HomePageContent() {
       writeEntries(next);
       return next;
     });
+    setSelectedId(entryId);
     const timer = window.setTimeout(() => {
       setSaveState("Saved");
     }, 700);
@@ -671,12 +708,23 @@ function HomePageContent() {
     setHasEdited(true);
   };
 
-  const toggleStickerPicker = () => {
-    setStickerPickerOpen((open) => !open);
+  const toggleStickerPicker = (source: "desktop" | "mobile" = "desktop") => {
+    setStickerPickerOpen((open) => {
+      const next = !open;
+      if (next) {
+        // Snapshot where to drop the next sticker before opening the picker —
+        // opening it flips the scroll area to overflow:visible (so the picker's
+        // shadow isn't clipped), which resets scrollTop and would otherwise make
+        // a live measurement at add-time read the wrong (unscrolled) position.
+        const surfaceWrap = source === "desktop" ? desktopSurfaceWrapRef.current : mobileSurfaceWrapRef.current;
+        stickerYRef.current = computeStickerY(surfaceWrap);
+      }
+      return next;
+    });
   };
 
   const addSticker = (key: StickerKey) => {
-    const sticker: PlacedSticker = { id: makeStickerId(), key, x: 50, y: 50, rotation: 0 };
+    const sticker: PlacedSticker = { id: makeStickerId(), key, x: 50, y: stickerYRef.current, rotation: 0 };
     setDraftStickers((current) => [...current, sticker]);
     setSelectedStickerId(sticker.id);
     setStickerPickerOpen(false);
@@ -726,27 +774,34 @@ function HomePageContent() {
             </div>
 
             <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
-              <div className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}>
-                <header className="entry-editor-header">
-                  <input
-                    aria-label="Entry date"
-                    className="entry-editor-title"
-                    value={draftDate}
-                    onChange={(event) => {
-                      setDraftDate(event.target.value);
-                      setHasEdited(true);
-                    }}
+              <div
+                ref={desktopScrollAreaRef}
+                className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}
+                onScroll={handleDesktopScroll}
+              >
+                <div className="entry-editor-sticky-top">
+                  <header className={`entry-editor-header${desktopScrolled ? " is-scrolled" : ""}`}>
+                    <input
+                      aria-label="Entry date"
+                      className="entry-editor-title"
+                      value={draftDate}
+                      onChange={(event) => {
+                        setDraftDate(event.target.value);
+                        setHasEdited(true);
+                      }}
+                    />
+                  </header>
+
+                  <EditorToolbar
+                    onAction={handleToolbarAction}
+                    onAddSticker={addSticker}
+                    pickerOpen={stickerPickerOpen}
+                    onTogglePicker={() => toggleStickerPicker("desktop")}
+                    wordCount={editorWordCount}
                   />
-                </header>
+                </div>
 
-                <EditorToolbar
-                  onAction={handleToolbarAction}
-                  onAddSticker={addSticker}
-                  pickerOpen={stickerPickerOpen}
-                  onTogglePicker={toggleStickerPicker}
-                />
-
-                <div className="entry-editor-surface-wrap">
+                <div className="entry-editor-surface-wrap" ref={desktopSurfaceWrapRef}>
                   <EditorSurface editorRef={desktopEditorRef} onInput={(html) => handleEditorInput("desktop", html)} />
                   {draftStickers.map((sticker) => (
                     <DraggableSticker
@@ -759,7 +814,6 @@ function HomePageContent() {
                       onColor={(color) => updateSticker(sticker.id, { color })}
                     />
                   ))}
-                  <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
                 </div>
               </div>
 
@@ -801,21 +855,26 @@ function HomePageContent() {
           </div>
 
           <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
-            <div className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}>
-              <header className="entry-editor-header">
-                <input
-                  aria-label="Entry date"
-                  className="entry-editor-title"
-                  value={draftDate}
-                  onChange={(event) => {
-                    setDraftDate(event.target.value);
-                    setHasEdited(true);
-                  }}
-                />
-              </header>
+            <div
+              ref={mobileScrollAreaRef}
+              className={`entry-editor-scroll-area${stickerPickerOpen ? " picker-open" : ""}`}
+              onScroll={handleMobileScroll}
+            >
+              <div className="entry-editor-sticky-top">
+                <header className={`entry-editor-header${mobileScrolled ? " is-scrolled" : ""}`}>
+                  <input
+                    aria-label="Entry date"
+                    className="entry-editor-title"
+                    value={draftDate}
+                    onChange={(event) => {
+                      setDraftDate(event.target.value);
+                      setHasEdited(true);
+                    }}
+                  />
+                </header>
+              </div>
 
-              <div className="entry-editor-surface-wrap">
-                <div className="entry-editor-wordcount mono">{editorWordCount} words</div>
+              <div className="entry-editor-surface-wrap" ref={mobileSurfaceWrapRef}>
                 <EditorSurface editorRef={mobileEditorRef} onInput={(html) => handleEditorInput("mobile", html)} />
                 {draftStickers.map((sticker) => (
                   <DraggableSticker
@@ -835,7 +894,8 @@ function HomePageContent() {
               onAction={handleToolbarAction}
               onAddSticker={addSticker}
               pickerOpen={stickerPickerOpen}
-              onTogglePicker={toggleStickerPicker}
+              onTogglePicker={() => toggleStickerPicker("mobile")}
+              wordCount={editorWordCount}
             />
 
             <div className="entry-editor-divider" aria-hidden="true" />

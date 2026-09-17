@@ -22,7 +22,7 @@ function Sidebar() {
       <a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a>
       <button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}>
         <img src="/add.svg" alt="" />
-        <span>new entry</span>
+        <span>new notes</span>
       </button>
       <nav className="calendar-sidebar-nav" aria-label="Main navigation">
         {navItems.map((item) => (

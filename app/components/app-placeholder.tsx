@@ -16,7 +16,7 @@ export function AppPlaceholder({ title, description }: { title: string; descript
     <main className="app-placeholder-page">
       <aside className="app-placeholder-sidebar">
         <a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a>
-        <a className="calendar-new-entry" href="/home?new=1"><img src="/add.svg" alt="" /><span>new entry</span></a>
+        <a className="calendar-new-entry" href="/home?new=1"><img src="/add.svg" alt="" /><span>new notes</span></a>
         <nav className="calendar-sidebar-nav" aria-label="Main navigation">
           {navItems.map((item) => <a className={item.label === activeLabel ? "active" : ""} href={item.href} key={item.label}><img src={item.label === activeLabel ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}
         </nav>
