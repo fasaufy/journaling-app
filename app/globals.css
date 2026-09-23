@@ -140,6 +140,7 @@ input:focus { border-color: var(--accent); background: white; box-shadow: 0 0 0 
 .home-entry-card:active { transform: scale(.98); transition-duration: 100ms; }
 .home-entry-card-content { display: flex; min-height: 143px; flex-direction: column; padding: 16px; }
 .home-entry-card.selected .home-entry-card-content { border-radius: 16px; background: #fff; box-shadow: 0 0 10.516px 0 rgba(13,110,253,.5) inset, 0 0 5.991px 0 #0d6efd inset, 0 0 1.367px 0 #001535 inset; }
+.home-entry-empty-card { width: 100%; flex: 0 0 auto; border: 1px dashed #ccc; border-radius: 16px; background: transparent; padding: 0; }
 .home-entry-card time { color: var(--label); font-size: 10px; line-height: 12px; }
 .home-entry-meta, .home-detail-meta { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .home-entry-meta { margin-top: 16px; }

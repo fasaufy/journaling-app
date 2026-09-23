@@ -95,6 +95,10 @@ function EntryCard({ entry, selected, onSelect }: { entry: Entry; selected: bool
   return <button className={`home-entry-card${selected ? " selected" : ""}`} onClick={onSelect}>{card}</button>;
 }
 
+function EmptyEntryCard() {
+  return <div className="home-entry-card-content home-entry-empty-card" aria-hidden="true" />;
+}
+
 function StickerGlyph({ stickerKey, color }: { stickerKey: StickerKey; color: string }) {
   const maskImage = `url(${stickerAssets[stickerKey]})`;
   return (
@@ -134,7 +138,20 @@ function StickerCanvas({ stickers }: { stickers?: PlacedSticker[] }) {
   );
 }
 
-function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry; onDelete: () => void; onEdit: () => void }) {
+function DetailPanel({ entry, onDelete, onEdit }: { entry: Entry | null; onDelete: () => void; onEdit: () => void }) {
+  if (!entry) {
+    return (
+      <div className="calendar-empty-detail">
+        <img className="calendar-empty-icon" src="/Notepad.svg" alt="" />
+        <h2>Nothing here just yet</h2>
+        <button type="button" className="calendar-new-entry calendar-empty-action" onClick={onEdit}>
+          <img src="/add.svg" alt="" />
+          <span>new notes</span>
+        </button>
+      </div>
+    );
+  }
+
   return <article className="home-detail-panel"><header className="home-detail-header"><div><h2>{entry.date}</h2><div className="home-detail-meta"><img src={moodIcons[entry.mood]} alt={`${entry.mood} mood`} /><strong>{entry.mood}</strong><span className="home-detail-divider" />{entry.tags.map((tag) => <span className="home-tag-chip" key={tag}>{tag}</span>)}</div></div><div className="home-detail-actions"><button className="calendar-glass-button" onClick={onEdit} aria-label="Edit entry"><img src="/edit.svg" alt="" /></button><button className="calendar-glass-button" onClick={onDelete} aria-label="Delete entry"><img src="/delete.svg" alt="" /></button></div></header><div className="home-detail-body">{entry.body.map((paragraph, index) => <p key={index} dangerouslySetInnerHTML={{ __html: paragraph }} />)}<StickerCanvas stickers={entry.stickers} /></div></article>;
 }
 
@@ -481,7 +498,7 @@ function HomePageContent() {
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<HomeFilter>("all");
-  const [selectedId, setSelectedId] = useState(entries[0].id);
+  const [selectedId, setSelectedId] = useState(entries[0]?.id ?? "");
   const [mobileDetail, setMobileDetail] = useState(false);
   const [draftDate, setDraftDate] = useState(formatNewEntryDate());
   const [draftBody, setDraftBody] = useState("");
@@ -507,7 +524,7 @@ function HomePageContent() {
   const directEntry = entries.find((entry) => entryDateKey(entry.date) === selectedDate);
   const isDirectEntry = Boolean(directEntry && !routeMode);
   const isEditorOpen = Boolean(routeMode);
-  const selected = entries.find((entry) => entry.id === selectedId) ?? entries.find((entry) => entryDateKey(entry.date) === selectedDate) ?? entries[0];
+  const selected = entries.find((entry) => entry.id === selectedId) ?? entries.find((entry) => entryDateKey(entry.date) === selectedDate) ?? entries[0] ?? null;
   const visibleEntries = useMemo(() => {
     const now = new Date();
     return entries.filter((entry) => {
@@ -633,6 +650,14 @@ function HomePageContent() {
     selection?.addRange(range);
   }, [routeMode]);
 
+  const openEditor = (entry: Entry | null) => {
+    if (!entry) {
+      router.push("/home?new=1");
+      return;
+    }
+    router.push(`/home?edit=${entry.id}`);
+  };
+
   const deleteEntry = () => {
     if (!selected) return;
     setConfirmDelete("list");
@@ -751,14 +776,14 @@ function HomePageContent() {
         <div className="home-list-inner">
           <SearchField query={query} setQuery={setQuery} />
           <FilterBar activeFilter={activeFilter} onChange={setActiveFilter} />
-          <div className="home-entry-list home-entry-list-desktop">{visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => setSelectedId(entry.id)} />)}</div>
-          <div className="home-entry-list home-entry-list-mobile">{!mobileDetail && visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => { setSelectedId(entry.id); setMobileDetail(true); }} />)}</div>
+          <div className="home-entry-list home-entry-list-desktop">{entries.length === 0 ? <EmptyEntryCard /> : visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => setSelectedId(entry.id)} />)}</div>
+          <div className="home-entry-list home-entry-list-mobile">{!mobileDetail && (entries.length === 0 ? <EmptyEntryCard /> : visibleEntries.map((entry) => <EntryCard key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={() => { setSelectedId(entry.id); setMobileDetail(true); }} />))}</div>
         </div>
       </section>
 
       <section className={`home-desktop-detail${isDirectEntry ? " direct-entry-detail" : ""}`}>
         {!routeMode ? (
-          <DetailPanel entry={selected} onDelete={deleteEntry} onEdit={() => router.push(`/home?edit=${selected.id}`)} />
+          <DetailPanel entry={selected} onDelete={deleteEntry} onEdit={() => openEditor(selected)} />
         ) : (
           <div className="entry-editor-screen entry-editor-desktop">
             <div className="entry-editor-topbar">
@@ -835,7 +860,7 @@ function HomePageContent() {
       </section>
 
       <div className="home-mobile-layer">
-        <AnimatePresence mode="wait">{mobileDetail && <MobileDetail key={selected.id} entry={selected} onBack={() => setMobileDetail(false)} onDelete={deleteEntry} onEdit={() => router.push(`/home?edit=${selected.id}`)} />}</AnimatePresence>
+        <AnimatePresence mode="wait">{mobileDetail && selected && <MobileDetail key={selected.id} entry={selected} onBack={() => setMobileDetail(false)} onDelete={deleteEntry} onEdit={() => openEditor(selected)} />}</AnimatePresence>
       </div>
 
       <MobileNavigation />

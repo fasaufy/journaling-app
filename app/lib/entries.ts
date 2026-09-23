@@ -71,10 +71,7 @@ export function readEntries() {
   try {
     const parsed = JSON.parse(stored) as Entry[];
     if (!Array.isArray(parsed)) return initialEntries;
-    const storedById = new Map(parsed.map((entry) => [entry.id, entry]));
-    const mergedInitial = initialEntries.map((entry) => storedById.get(entry.id) ?? entry);
-    const initialIds = new Set(initialEntries.map((entry) => entry.id));
-    return [...parsed.filter((entry) => !initialIds.has(entry.id)), ...mergedInitial];
+    return parsed;
   } catch {
     return initialEntries;
   }
