@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { dateKey, entryDateKey, initialEntries, type PlacedSticker, readEntries, stickerAssets, type Entry, type Mood, type StickerKey, writeEntries } from "../lib/entries";
@@ -46,7 +47,6 @@ function StickerCanvas({ stickers }: { stickers?: PlacedSticker[] }) {
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
-  { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 
 function getWeekDates(anchorDate: Date) {
@@ -75,7 +75,7 @@ function GlassButton({ children, className = "", onClick, label }: { children: R
 }
 
 function Logo() {
-  return <a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a>;
+  return <Link className="calendar-logo" href="/" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></Link>;
 }
 
 function Sidebar({ onNewEntry }: { onNewEntry: () => void }) {
@@ -322,7 +322,8 @@ function MobileNavigation() {
       <div className="calendar-mobile-segmented">
         {navItems.map((item) => (
           <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}>
-            <img src={pathname === item.href ? item.activeIcon : item.icon} alt={item.label} />
+            <img src={pathname === item.href ? item.activeIcon : item.icon} alt="" />
+            <span>{item.label}</span>
           </a>
         ))}
       </div>

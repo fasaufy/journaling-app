@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { entryDateKey, initialEntries, type PlacedSticker, stickerAssets, stickerColors, stickerKeys, type Entry, type Mood, readEntries, type StickerKey, writeEntries } from "../lib/entries";
@@ -9,7 +10,6 @@ const moodIcons: Record<Mood, string> = { Great: "/Great.svg", Good: "/Good.svg"
 const navItems = [
   { label: "home", href: "/home", icon: "/home-default.svg", activeIcon: "/home-active.svg" },
   { label: "calendar", href: "/calendar", icon: "/calendar-default.svg", activeIcon: "/calendar-active.svg" },
-  { label: "settings", href: "/settings", icon: "/settings-default.svg", activeIcon: "/settings-active.svg" },
 ];
 const moodOptions: Mood[] = ["Great", "Good", "Neutral", "Low", "Rough"];
 type HomeFilter = "all" | "thisMonth" | Mood;
@@ -19,11 +19,6 @@ const formatDateKey = (key: string | null) => {
   const [year, month, day] = key.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   return Number.isNaN(date.getTime()) ? formatNewEntryDate() : new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(date);
-};
-const countWords = (text: string) => {
-  const trimmed = text.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(/\s+/).length;
 };
 const stripHtml = (html: string) => {
   if (typeof document === "undefined") return html.replace(/<[^>]+>/g, " ");
@@ -50,7 +45,7 @@ const stickerRotationStyle = (sticker: { rotation: number }): CSSProperties => (
 function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  return <aside className="calendar-sidebar"><a className="calendar-logo" href="/login" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></a><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new notes</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav></aside>;
+  return <aside className="calendar-sidebar"><Link className="calendar-logo" href="/" aria-label="daybük home"><img src="/logo.svg" alt="daybük" /></Link><button className="calendar-new-entry" onClick={() => router.push("/home?new=1")}><img src="/add.svg" alt="" /><span>new notes</span></button><nav className="calendar-sidebar-nav" aria-label="Main navigation">{navItems.map((item) => <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}><img src={pathname === item.href ? item.activeIcon : item.icon} alt="" /><span>{item.label}</span></a>)}</nav></aside>;
 }
 
 function MobileNavigation() {
@@ -60,7 +55,8 @@ function MobileNavigation() {
       <div className="calendar-mobile-segmented">
         {navItems.map((item) => (
           <a className={pathname === item.href ? "active" : ""} href={item.href} key={item.label}>
-            <img src={pathname === item.href ? item.activeIcon : item.icon} alt={item.label} />
+            <img src={pathname === item.href ? item.activeIcon : item.icon} alt="" />
+            <span>{item.label}</span>
           </a>
         ))}
       </div>
@@ -328,20 +324,16 @@ function EditorToolbar({
   onAddSticker,
   pickerOpen,
   onTogglePicker,
-  wordCount,
 }: {
-  onAction: (action: "bold" | "italic" | "underline" | "bullet" | "numbered" | "quote") => void;
+  onAction: (action: "bold" | "italic" | "underline" | "bullet" | "numbered") => void;
   onAddSticker: (key: StickerKey) => void;
   pickerOpen: boolean;
   onTogglePicker: () => void;
-  wordCount: number;
 }) {
   const stopStealingFocus = (event: React.MouseEvent) => event.preventDefault();
 
   return (
     <div className="entry-editor-toolbar-wrap">
-      <div className="entry-editor-wordcount mono">{wordCount} words</div>
-
       <div className="entry-editor-toolbar" role="toolbar" aria-label="Formatting toolbar">
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("bold")} aria-label="Bold">B</button>
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("italic")} aria-label="Italic"><em>I</em></button>
@@ -349,7 +341,6 @@ function EditorToolbar({
         <span className="entry-editor-toolbar-divider" aria-hidden="true" />
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("bullet")} aria-label="Bullet list">•</button>
         <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("numbered")} aria-label="Numbered list">1.</button>
-        <button type="button" className="entry-editor-tool" onMouseDown={stopStealingFocus} onClick={() => onAction("quote")} aria-label="Block quote">❝</button>
         <span className="entry-editor-toolbar-divider" aria-hidden="true" />
         <button type="button" className="entry-editor-sticker-toggle" onClick={onTogglePicker} aria-pressed={pickerOpen} aria-label="Add a sticker">
           <img src="/Sticker.png" alt="" />
@@ -431,24 +422,62 @@ function EditorMoodsAndTags({
   addTag: () => void;
   setHasEdited: (value: boolean) => void;
 }) {
+  const [moodPickerOpen, setMoodPickerOpen] = useState(false);
+
   return (
     <div className="entry-editor-meta-row">
-      <div className="entry-editor-moods" aria-label="Mood selector">
-        {moodOptions.map((mood) => (
-          <button
-            key={mood}
-            type="button"
-            className={`entry-editor-mood${draftMood === mood ? " selected" : ""}`}
-            onClick={() => {
-              setDraftMood(draftMood === mood ? null : mood);
-              setHasEdited(true);
-            }}
-          >
-            <img src={moodIcons[mood]} alt="" />
-            <span>{mood}</span>
-          </button>
-        ))}
+      <div className="entry-editor-mood-picker">
+        <button
+          type="button"
+          className="entry-editor-mood-trigger"
+          onClick={() => setMoodPickerOpen((open) => !open)}
+          aria-haspopup="true"
+          aria-expanded={moodPickerOpen}
+        >
+          {draftMood ? (
+            <>
+              <img src={moodIcons[draftMood]} alt="" />
+              <span>{draftMood}</span>
+            </>
+          ) : (
+            <span className="entry-editor-mood-placeholder">Add mood</span>
+          )}
+        </button>
+
+        <AnimatePresence>
+          {moodPickerOpen ? (
+            <motion.div
+              key="mood-popover"
+              initial={{ opacity: 0, y: -6, scale: .98 }}
+              animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: .2, ease: [0.16, 1, 0.3, 1] } }}
+              exit={{ opacity: 0, y: -4, scale: .98, transition: { duration: .15, ease: [0.4, 0, 1, 1] } }}
+              className="entry-editor-mood-popover"
+              role="menu"
+              aria-label="Mood selector"
+            >
+              {moodOptions.map((mood) => (
+                <button
+                  key={mood}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={draftMood === mood}
+                  className={`entry-editor-mood-option${draftMood === mood ? " selected" : ""}`}
+                  onClick={() => {
+                    setDraftMood(draftMood === mood ? null : mood);
+                    setHasEdited(true);
+                    setMoodPickerOpen(false);
+                  }}
+                >
+                  <img src={moodIcons[mood]} alt="" />
+                  <span>{mood}</span>
+                </button>
+              ))}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
+
+      {draftTags.length > 0 ? <span className="home-detail-divider" aria-hidden="true" /> : null}
 
       <div className="entry-editor-tags">
         {draftTags.map((tag) => (
@@ -460,26 +489,27 @@ function EditorMoodsAndTags({
           </span>
         ))}
 
-        <div className="entry-editor-tag-input-wrap">
-          <input
-            aria-label="Add a tag"
-            value={tagInput}
-            placeholder="Add a tag"
-            maxLength={18}
-            onChange={(event) => {
-              setTagInput(event.target.value);
-              setHasEdited(true);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addTag();
-              }
-            }}
-          />
-        </div>
-        <button type="button" className="entry-editor-tag-add" onClick={addTag} aria-label="Add a tag"><img src="/add.svg" alt="" /></button>
-        <span className="entry-editor-tag-counter mono">{draftTags.length} of 5</span>
+        {draftTags.length < 5 ? (
+          <div className="entry-editor-tag-input-wrap">
+            <input
+              aria-label="Add a tag"
+              value={tagInput}
+              placeholder="add a tag"
+              maxLength={18}
+              onChange={(event) => {
+                setTagInput(event.target.value);
+                setHasEdited(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addTag();
+                }
+              }}
+            />
+            <button type="button" className="entry-editor-tag-add" onClick={addTag} aria-label="Add a tag"><img src="/add.svg" alt="" /></button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -508,7 +538,6 @@ function HomePageContent() {
   const [draftStickers, setDraftStickers] = useState<PlacedSticker[]>([]);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
-  const [saveState, setSaveState] = useState("Saved");
   const [hasEdited, setHasEdited] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<"list" | "editor" | null>(null);
   const [desktopScrolled, setDesktopScrolled] = useState(false);
@@ -579,7 +608,6 @@ function HomePageContent() {
       setDraftStickers([]);
       setSelectedStickerId(null);
       setStickerPickerOpen(false);
-      setSaveState("Saved");
       setHasEdited(false);
       syncEditorContent("");
       return;
@@ -597,7 +625,6 @@ function HomePageContent() {
       setDraftStickers(entry.stickers ?? []);
       setSelectedStickerId(null);
       setStickerPickerOpen(false);
-      setSaveState("Saved");
       setHasEdited(false);
       syncEditorContent(html);
     }
@@ -630,11 +657,6 @@ function HomePageContent() {
       return next;
     });
     setSelectedId(entryId);
-    const timer = window.setTimeout(() => {
-      setSaveState("Saved");
-    }, 700);
-    setSaveState("saving…");
-    return () => window.clearTimeout(timer);
   }, [draftBody, draftDate, draftMood, draftTags, draftStickers, hasEdited, routeMode]);
 
   useEffect(() => {
@@ -694,7 +716,7 @@ function HomePageContent() {
     if (other && other.innerHTML !== html) other.innerHTML = html;
   };
 
-  const handleToolbarAction = (action: "bold" | "italic" | "underline" | "bullet" | "numbered" | "quote") => {
+  const handleToolbarAction = (action: "bold" | "italic" | "underline" | "bullet" | "numbered") => {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !active.isContentEditable) return;
 
@@ -704,14 +726,8 @@ function HomePageContent() {
       underline: "underline",
       bullet: "insertUnorderedList",
       numbered: "insertOrderedList",
-      quote: "formatBlock",
     };
-    const command = commandByAction[action];
-    if (command === "formatBlock") {
-      document.execCommand(command, false, "blockquote");
-    } else {
-      document.execCommand(command, false);
-    }
+    document.execCommand(commandByAction[action], false);
 
     const html = active.innerHTML;
     setDraftBody(html);
@@ -767,8 +783,6 @@ function HomePageContent() {
     setHasEdited(true);
   };
 
-  const editorWordCount = countWords(stripHtml(draftBody));
-
   return (
     <main className={`home-page${isDirectEntry ? " direct-entry-page" : ""}${isEditorOpen ? " editor-open-page" : ""}`}>
       <Sidebar />
@@ -786,18 +800,6 @@ function HomePageContent() {
           <DetailPanel entry={selected} onDelete={deleteEntry} onEdit={() => openEditor(selected)} />
         ) : (
           <div className="entry-editor-screen entry-editor-desktop">
-            <div className="entry-editor-topbar">
-              <button type="button" className="entry-editor-close" onClick={() => router.push(editorEntryPoint)}>
-                <img src="/Close.svg" alt="" />
-                <span>Close</span>
-              </button>
-              <div className="entry-editor-status mono">{saveState}</div>
-              <button type="button" className="entry-editor-delete" onClick={() => setConfirmDelete("editor")}>
-                <img src="/delete.svg" alt="" />
-                <span>Delete</span>
-              </button>
-            </div>
-
             <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
               <div
                 ref={desktopScrollAreaRef}
@@ -805,6 +807,15 @@ function HomePageContent() {
                 onScroll={handleDesktopScroll}
               >
                 <div className="entry-editor-sticky-top">
+                  <div className="entry-editor-actions">
+                    <button type="button" className="entry-editor-icon-button" onClick={() => router.push(editorEntryPoint)} aria-label="Close">
+                      <img src="/Close.svg" alt="" />
+                    </button>
+                    <button type="button" className="entry-editor-icon-button entry-editor-icon-danger" onClick={() => setConfirmDelete("editor")} aria-label="Delete entry">
+                      <img src="/delete.svg" alt="" />
+                    </button>
+                  </div>
+
                   <header className={`entry-editor-header${desktopScrolled ? " is-scrolled" : ""}`}>
                     <input
                       aria-label="Entry date"
@@ -815,6 +826,16 @@ function HomePageContent() {
                         setHasEdited(true);
                       }}
                     />
+                    <EditorMoodsAndTags
+                      draftMood={draftMood}
+                      setDraftMood={setDraftMood}
+                      draftTags={draftTags}
+                      removeTag={removeTag}
+                      tagInput={tagInput}
+                      setTagInput={setTagInput}
+                      addTag={addTag}
+                      setHasEdited={setHasEdited}
+                    />
                   </header>
 
                   <EditorToolbar
@@ -822,7 +843,6 @@ function HomePageContent() {
                     onAddSticker={addSticker}
                     pickerOpen={stickerPickerOpen}
                     onTogglePicker={() => toggleStickerPicker("desktop")}
-                    wordCount={editorWordCount}
                   />
                 </div>
 
@@ -841,19 +861,6 @@ function HomePageContent() {
                   ))}
                 </div>
               </div>
-
-              <div className="entry-editor-divider" aria-hidden="true" />
-
-              <EditorMoodsAndTags
-                draftMood={draftMood}
-                setDraftMood={setDraftMood}
-                draftTags={draftTags}
-                removeTag={removeTag}
-                tagInput={tagInput}
-                setTagInput={setTagInput}
-                addTag={addTag}
-                setHasEdited={setHasEdited}
-              />
             </div>
           </div>
         )}
@@ -867,18 +874,6 @@ function HomePageContent() {
 
       {routeMode && (
         <div className="entry-editor-screen entry-editor-mobile">
-          <div className="entry-editor-topbar">
-            <button type="button" className="entry-editor-close" onClick={() => router.push(editorEntryPoint)}>
-              <img src="/Close.svg" alt="" />
-              <span>Close</span>
-            </button>
-            <div className="entry-editor-status mono">{saveState}</div>
-            <button type="button" className="entry-editor-delete" onClick={() => setConfirmDelete("editor")}>
-              <img src="/delete.svg" alt="" />
-              <span>Delete</span>
-            </button>
-          </div>
-
           <div className="entry-editor-shell" onPointerDown={() => setSelectedStickerId(null)}>
             <div
               ref={mobileScrollAreaRef}
@@ -886,6 +881,16 @@ function HomePageContent() {
               onScroll={handleMobileScroll}
             >
               <div className="entry-editor-sticky-top">
+                <div className="entry-editor-actions">
+                  <button type="button" className="entry-editor-back" onClick={() => router.push(editorEntryPoint)}>
+                    <span className="entry-editor-icon-button" aria-hidden="true"><img src="/Close.svg" alt="" /></span>
+                    <span>All entries</span>
+                  </button>
+                  <button type="button" className="entry-editor-icon-button entry-editor-icon-danger" onClick={() => setConfirmDelete("editor")} aria-label="Delete entry">
+                    <img src="/delete.svg" alt="" />
+                  </button>
+                </div>
+
                 <header className={`entry-editor-header${mobileScrolled ? " is-scrolled" : ""}`}>
                   <input
                     aria-label="Entry date"
@@ -896,7 +901,24 @@ function HomePageContent() {
                       setHasEdited(true);
                     }}
                   />
+                  <EditorMoodsAndTags
+                    draftMood={draftMood}
+                    setDraftMood={setDraftMood}
+                    draftTags={draftTags}
+                    removeTag={removeTag}
+                    tagInput={tagInput}
+                    setTagInput={setTagInput}
+                    addTag={addTag}
+                    setHasEdited={setHasEdited}
+                  />
                 </header>
+
+                <EditorToolbar
+                  onAction={handleToolbarAction}
+                  onAddSticker={addSticker}
+                  pickerOpen={stickerPickerOpen}
+                  onTogglePicker={() => toggleStickerPicker("mobile")}
+                />
               </div>
 
               <div className="entry-editor-surface-wrap" ref={mobileSurfaceWrapRef}>
@@ -914,27 +936,6 @@ function HomePageContent() {
                 ))}
               </div>
             </div>
-
-            <EditorToolbar
-              onAction={handleToolbarAction}
-              onAddSticker={addSticker}
-              pickerOpen={stickerPickerOpen}
-              onTogglePicker={() => toggleStickerPicker("mobile")}
-              wordCount={editorWordCount}
-            />
-
-            <div className="entry-editor-divider" aria-hidden="true" />
-
-            <EditorMoodsAndTags
-              draftMood={draftMood}
-              setDraftMood={setDraftMood}
-              draftTags={draftTags}
-              removeTag={removeTag}
-              tagInput={tagInput}
-              setTagInput={setTagInput}
-              addTag={addTag}
-              setHasEdited={setHasEdited}
-            />
           </div>
         </div>
       )}
